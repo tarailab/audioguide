@@ -5,3 +5,8 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+certs/audioguide.crt
+certs/audioguide.key
+certs/caddy_data/
+.github-project-id
