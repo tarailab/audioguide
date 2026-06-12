@@ -7,7 +7,7 @@ import CompassRose from '../components/CompassRose';
 export default function JourneyScreen({ prefs, onOpenPrefs }) {
   const { position, speedKmh, mode, error: gpsError } = useGPS();
   const { heading, permissionNeeded, requestPermission } = useCompass();
-  const { queue, current, status, skip, thumbsUp, thumbsDown } = useStoryQueue({
+  const { queue, current, status, skip, thumbsUp, thumbsDown, playNow } = useStoryQueue({
     position, heading, mode, prefs,
   });
 
@@ -36,14 +36,21 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
         {status === 'idle' && !current && (
           <div className="state-card idle">
             <div className="state-icon">🎧</div>
-            <p className="state-title">Listening…</p>
+            <p className="state-title">
+              {!position ? 'Waiting for GPS…' : queue.length > 0 ? `${queue.length} place${queue.length > 1 ? 's' : ''} nearby` : 'Ready'}
+            </p>
             <p className="state-sub">
               {!position
-                ? 'Waiting for GPS…'
+                ? 'Allow location access to find stories'
                 : queue.length > 0
-                ? `${queue.length} place${queue.length > 1 ? 's' : ''} ahead`
-                : 'Looking for stories nearby'}
+                ? 'Stories will play as you approach'
+                : 'Stories play automatically as you travel'}
             </p>
+            {position && (
+              <button className="btn-primary play-now-btn" onClick={playNow}>
+                ▶ Play nearest story now
+              </button>
+            )}
           </div>
         )}
 

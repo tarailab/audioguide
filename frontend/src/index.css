@@ -306,3 +306,9 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   text-align: center;
   margin-top: 8px;
 }
+
+.play-now-btn {
+  margin-top: 20px;
+  font-size: 18px;
+  padding: 16px;
+}

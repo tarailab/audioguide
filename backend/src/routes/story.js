@@ -15,9 +15,10 @@ router.post('/', async (req, res) => {
   if (!poi?.name) return res.status(400).json({ error: 'poi with name required' });
 
   try {
-    // Condense Wikipedia extract via Ollama (free) to cut Claude input tokens
+    // Condense Wikipedia extract via Ollama (bypassed — re-enable when Ollama is warm)
+    const USE_OLLAMA_CONDENSER = false;
     let context = poi.wiki?.extract || `${poi.name} — a notable place`;
-    if (context.length > 300) {
+    if (USE_OLLAMA_CONDENSER && context.length > 300) {
       console.log(`[Story] Condensing ${context.length} chars via Ollama`);
       context = await condenseSummary(context, interests);
     }

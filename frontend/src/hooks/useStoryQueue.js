@@ -118,5 +118,20 @@ export function useStoryQueue({ position, heading, mode, prefs }) {
     localStorage.setItem('audioguide-reactions', JSON.stringify(updated));
   };
 
-  return { queue, current, status, skip, thumbsUp, thumbsDown };
+  const playNow = useCallback(async () => {
+    if (busy.current || !position) return;
+    setStatus('fetching');
+    try {
+      const pois = await fetchPOIs({ ...position, heading, interests: prefs.interests, radius: 2000 });
+      const fresh = pois.filter(p => !visitedIds.current.has(p.id));
+      if (fresh.length === 0) { setStatus('idle'); return; }
+      setQueue(fresh);
+      await generateAndPlay(fresh[0]);
+    } catch (err) {
+      console.error('[Queue] playNow error:', err);
+      setStatus('idle');
+    }
+  }, [position, heading, prefs, generateAndPlay]);
+
+  return { queue, current, status, skip, thumbsUp, thumbsDown, playNow };
 }
