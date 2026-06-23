@@ -194,6 +194,14 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .pause-btn { background: var(--surface2); font-size: 18px; }
 
 /* ── Queue strip ──────────────────────────────── */
+.queue-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin: 10px 0 6px;
+}
+
 .queue-strip {
   display: flex;
   gap: 8px;

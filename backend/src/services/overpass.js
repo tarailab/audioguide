@@ -3,6 +3,27 @@ const OVERPASS_URLS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
+const MIN_GAP_MS = 1200; // min spacing between upstream calls (free tier is ~2 slots)
+
+// Serialize all Overpass traffic through one queue with a minimum gap. The
+// public servers rate-limit hard (429) if you fire concurrent/rapid requests,
+// which is exactly what happens during fast driving. One-at-a-time + spacing
+// keeps us under the limit; the route-level cache absorbs the rest.
+let chain = Promise.resolve();
+let lastCallAt = 0;
+
+function schedule(task) {
+  const run = chain.then(async () => {
+    const wait = Math.max(0, MIN_GAP_MS - (Date.now() - lastCallAt));
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    lastCallAt = Date.now();
+    return task();
+  });
+  // Keep the chain alive even if this task throws.
+  chain = run.then(() => {}, () => {});
+  return run;
+}
+
 async function fetchOverpass(query, urlIndex = 0) {
   const url = OVERPASS_URLS[urlIndex % OVERPASS_URLS.length];
   console.log(`[Overpass] Trying ${url}`);
@@ -36,7 +57,7 @@ async function queryPOIs(lat, lon, radius) {
 out 40;
 `.trim();
 
-  const data = await fetchOverpass(query);
+  const data = await schedule(() => fetchOverpass(query));
 
   return data.elements
     .filter(el => el.tags?.name)

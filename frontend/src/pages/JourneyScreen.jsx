@@ -6,6 +6,11 @@ import { primeTTS } from '../services/tts';
 import CompassRose from '../components/CompassRose';
 import MapView from '../components/MapView';
 
+function fmtDist(m) {
+  if (m == null) return '';
+  return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`;
+}
+
 export default function JourneyScreen({ prefs, onOpenPrefs }) {
   const { position, speedKmh, mode, course, error: gpsError } = useGPS();
   const { heading, permissionNeeded, requestPermission } = useCompass();
@@ -37,6 +42,7 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
           queue={queue}
           current={current}
           course={course}
+          headingUp={speedKmh > 5}
           onPoiTap={(poi) => playNow(poi)}
         />
       </div>
@@ -77,14 +83,42 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
       {/* Bottom card */}
       <div className={`bottom-card ${expanded ? 'expanded' : ''}`}>
 
-        {/* Story state */}
-        {status === 'idle' && !current && (
+        {/* Now playing / preparing — transport controls live here */}
+        {current ? (
+          <div className="card-playing">
+            <div className="card-row">
+              <div className="np-info">
+                <p className="poi-name-lg">{current.poi?.name}</p>
+                <p className="poi-meta">
+                  {fmtDist(current.poi?.distance)} · {current.poi?.bearing}
+                  {status === 'loading' && ' · preparing…'}
+                </p>
+              </div>
+              <div className="play-controls">
+                <button className="ctrl-btn" onClick={thumbsDown} aria-label="Not interested">👎</button>
+                <button className="ctrl-btn pause-btn" onClick={togglePause}
+                        disabled={status === 'loading'} aria-label="Pause/Resume">
+                  {status === 'loading' ? '…' : status === 'paused' ? '▶' : '⏸'}
+                </button>
+                <button className="ctrl-btn skip-btn" onClick={skip} aria-label="Skip">⏭</button>
+                <button className="ctrl-btn" onClick={thumbsUp} aria-label="Love it">👍</button>
+              </div>
+            </div>
+            {current.text && (
+              <p className="story-snippet" onClick={() => setExpanded(v => !v)}>
+                {expanded ? current.text : current.text.slice(0, 120) + '… ▼'}
+              </p>
+            )}
+          </div>
+        ) : (
+          /* Idle — single primary Play */
           <div className="card-idle">
             <div className="card-row">
               <span className="card-label">
                 {!position ? '📍 Waiting for GPS…'
-                  : queue.length > 0 ? `📍 ${queue.length} place${queue.length > 1 ? 's' : ''} nearby`
-                  : '📍 Ready'}
+                  : status === 'fetching' ? 'Finding places nearby…'
+                  : queue.length > 0 ? `📍 ${queue.length} place${queue.length > 1 ? 's' : ''} ahead`
+                  : '📍 No places yet'}
               </span>
               <button
                 className="btn-play"
@@ -100,55 +134,19 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
           </div>
         )}
 
-        {status === 'fetching' && (
-          <div className="card-row">
-            <div className="spinner-sm" />
-            <span className="card-label">Finding places nearby…</span>
-          </div>
-        )}
-
-        {status === 'loading' && current && (
-          <div className="card-row">
-            <div className="spinner-sm" />
-            <span className="card-label">Crafting story for <strong>{current.poi?.name}</strong>…</span>
-          </div>
-        )}
-
-        {(status === 'playing' || status === 'paused' || status === 'loading') && current && (
-          <div className="card-playing">
-            <div className="card-row">
-              <div>
-                <p className="poi-name-lg">{current.poi?.name}</p>
-                <p className="poi-meta">{current.poi?.distance}m · {current.poi?.bearing}</p>
-              </div>
-              <div className="play-controls">
-                <button className="ctrl-btn" onClick={thumbsDown} aria-label="Not interested">👎</button>
-                <button className="ctrl-btn pause-btn" onClick={togglePause} aria-label="Pause/Resume">
-                  {status === 'paused' ? '▶' : '⏸'}
+        {/* Nearby list — the one way to pick a specific place */}
+        {queue.length > 0 && !current && (
+          <>
+            <p className="queue-label">Nearby — tap to play</p>
+            <div className="queue-strip">
+              {queue.slice(0, 6).map(p => (
+                <button key={p.id} className="queue-chip" onClick={() => { primeTTS(); playNow(p); }}>
+                  <span className="queue-name">{p.name}</span>
+                  <span className="queue-dist">{fmtDist(p.distance)}</span>
                 </button>
-                <button className="ctrl-btn skip-btn" onClick={skip} aria-label="Skip">⏭</button>
-                <button className="ctrl-btn" onClick={thumbsUp} aria-label="Love it">👍</button>
-              </div>
+              ))}
             </div>
-            {current.text && (
-              <p className="story-snippet"
-                 onClick={() => setExpanded(v => !v)}>
-                {expanded ? current.text : current.text.slice(0, 120) + '… ▼'}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Queue strip */}
-        {queue.length > 0 && status !== 'playing' && status !== 'loading' && (
-          <div className="queue-strip">
-            {queue.slice(0, 4).map(p => (
-              <button key={p.id} className="queue-chip" onClick={() => playNow(p)}>
-                <span className="queue-name">{p.name}</span>
-                <span className="queue-dist">{p.distance < 1000 ? `${p.distance}m` : `${(p.distance / 1000).toFixed(1)}km`}</span>
-              </button>
-            ))}
-          </div>
+          </>
         )}
 
       </div>

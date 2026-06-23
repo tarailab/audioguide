@@ -25,15 +25,6 @@ on-device at all. The story text is good; the delivery isn't.
 
 ## 🟡 Quality / correctness
 
-### 3. Relevance ranking by notability
-Ollama relevance filter is bypassed; every POI is hardcoded `relevanceScore = 8`,
-so a bus stop ranks like a cathedral. Rank by Wikipedia presence (already
-fetched) + OSM importance tags. Small change, big quality jump.
-
-### 4. Story caching
-Every pass of a POI is a fresh paid Claude call. Cache by `poi.id + prefs` →
-second pass (or second user) is instant and free.
-
 ### 5. Select POIs *ahead*, not just nearest
 Heading/bearing are computed but selection is distance-only — a POI behind you
 can trigger. Prioritise what's coming up on the path.
@@ -74,3 +65,16 @@ wrapper (Capacitor). Blocks "real drive" usage, not testing.
 - Mobile TTS unlock + keep-alive (fixes silent / cut-off audio).
 - **Speed-dynamic discovery radius** — scales ~1 km walking → ~5–6 km at
   highway speed; auto-trigger biased to a forward arc when moving.
+- **Story caching** — server-side, 30-day TTL, keyed by place + settings
+  (5.7s → 0.1s on repeat, identical output).
+- **POI caching + Overpass throttling** — 15-min per-grid-cell cache with
+  in-flight de-dup, plus serialized 1.2s-spaced upstream calls. Kills the 429
+  storm at speed (12.7s → 0.1s on repeat).
+- **Relevance ranking by notability** — Wikipedia presence + historic/tourism/
+  place tags; drops benches & bus stops (replaces hardcoded score).
+- **Heading-up map** — map rotates so travel direction is screen-up while
+  moving (north-up when stopped).
+- **Single play control** — one primary Play/Pause/Resume + a labelled
+  "tap to play" list (was two competing play affordances).
+- **Wider auto-trigger at speed** — up to 4 km so rural roadside landmarks
+  fire; client-side discovery time-throttle (8s) as backstop.

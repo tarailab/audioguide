@@ -37,10 +37,11 @@ function discoveryRadiusM(speedKmh) {
 }
 
 // How close a place must be before we start its story, scaled by speed so a
-// story has time to play before you reach the place (~150 m walking →
-// ~1.3 km at 100 km/h).
+// story has time to play before you reach the place. Generous at speed because
+// on a rural highway notable places (hillforts, churches) sit a few km off the
+// road and you still want to hear about them as you pass.
 function triggerDistanceM(speedKmh) {
-  return Math.min(1500, Math.max(150, Math.round(150 + (speedKmh || 0) * 12)));
+  return Math.min(4000, Math.max(200, Math.round(200 + (speedKmh || 0) * 30)));
 }
 
 export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, prefs, autoMode = true }) {
@@ -53,6 +54,7 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
 
   const visitedIds = useRef(new Set());
   const lastFetchPos = useRef(null);
+  const lastFetchAt = useRef(0);
   const lastStoryAt = useRef(0);
   const busy = useRef(false);
   const discovering = useRef(false);
@@ -65,12 +67,16 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
   // so it can keep filling the list without interrupting a playing story.
   useEffect(() => {
     if (!position || discovering.current) return;
+    // Time throttle: never discover more than once every 8s, no matter how
+    // fast position updates arrive.
+    if (Date.now() - lastFetchAt.current < 8000) return;
     const radius = discoveryRadiusM(speedKmh);
     // Re-discover once we've moved ~a quarter of the look-ahead distance.
     const moveThreshold = Math.min(1500, Math.max(150, Math.round(radius * 0.25)));
     const moved = !lastFetchPos.current || haversine(position, lastFetchPos.current) > moveThreshold;
     if (!moved) return;
     lastFetchPos.current = position;
+    lastFetchAt.current = Date.now();
     discovering.current = true;
 
     fetchPOIs({ ...position, heading: course ?? heading, interests: prefs.interests, radius })

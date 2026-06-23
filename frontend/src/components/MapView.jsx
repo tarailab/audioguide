@@ -40,8 +40,9 @@ const PLAYING_ICON = L.divIcon({
   iconAnchor: [8, 8],
 });
 
-export default function MapView({ position, queue, current, course, onPoiTap }) {
+export default function MapView({ position, queue, current, course, headingUp = true, onPoiTap }) {
   const containerRef = useRef(null);
+  const rotWrapRef = useRef(null);
   const mapRef = useRef(null);
   const youRef = useRef(null);
   const poiMarkersRef = useRef({});
@@ -51,15 +52,25 @@ export default function MapView({ position, queue, current, course, onPoiTap }) 
   useEffect(() => {
     if (mapRef.current) return;
     const center = position ? [position.lat, position.lon] : [54.6872, 25.2797];
-    mapRef.current = L.map(containerRef.current, { zoomControl: true, attributionControl: false }).setView(center, 16);
+    mapRef.current = L.map(containerRef.current, { zoomControl: false, attributionControl: false }).setView(center, 16);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
     }).addTo(mapRef.current);
+    mapRef.current.invalidateSize();
 
     // Stop auto-following once the user drags the map; resume by tapping
     // their own arrow (re-centres below).
     mapRef.current.on('dragstart', () => { followRef.current = false; });
   }, []);
+
+  // Heading-up: rotate the whole map so travel direction points to the top of
+  // the screen. The map container is oversized 200% (see render) so rotation
+  // never exposes empty corners.
+  useEffect(() => {
+    if (!rotWrapRef.current) return;
+    const rot = (headingUp && Number.isFinite(course)) ? -course : 0;
+    rotWrapRef.current.style.transform = `rotate(${rot}deg)`;
+  }, [course, headingUp]);
 
   // Update user position marker + follow it on every fix
   useEffect(() => {
@@ -115,5 +126,23 @@ export default function MapView({ position, queue, current, course, onPoiTap }) 
     });
   }, [queue, current]);
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+      <div
+        ref={rotWrapRef}
+        style={{
+          position: 'absolute', inset: 0,
+          transformOrigin: 'center center',
+          transition: 'transform 0.4s ease-out',
+          willChange: 'transform',
+        }}
+      >
+        {/* Oversized so map rotation never reveals empty corners */}
+        <div
+          ref={containerRef}
+          style={{ position: 'absolute', top: '-50%', left: '-50%', width: '200%', height: '200%' }}
+        />
+      </div>
+    </div>
+  );
 }

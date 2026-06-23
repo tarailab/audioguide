@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const { condenseSummary } = require('../services/ollama');
 const { generateStory } = require('../services/claude');
+const cache = require('../services/cache');
+
+const STORY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 router.post('/', async (req, res) => {
   const {
@@ -14,17 +17,28 @@ router.post('/', async (req, res) => {
 
   if (!poi?.name) return res.status(400).json({ error: 'poi with name required' });
 
-  try {
-    // Condense Wikipedia extract via Ollama (bypassed — re-enable when Ollama is warm)
-    const USE_OLLAMA_CONDENSER = false;
-    let context = poi.wiki?.extract || `${poi.name} — a notable place`;
-    if (USE_OLLAMA_CONDENSER && context.length > 300) {
-      console.log(`[Story] Condensing ${context.length} chars via Ollama`);
-      context = await condenseSummary(context, interests);
-    }
+  // Cache key: same place + same story settings → identical story.
+  // Bearing is deliberately excluded so the cache survives passing a place
+  // from a different direction. id falls back to name when OSM id is missing.
+  const key = [
+    'story',
+    poi.id || poi.name,
+    length, language, tone,
+    [...interests].sort().join('+'),
+  ].join(':');
 
-    console.log(`[Story] Generating story for "${poi.name}" (${length}, ${language})`);
-    const story = await generateStory({ poi, context, interests, tone, length, language, bearing });
+  try {
+    const story = await cache.remember(key, STORY_TTL_MS, async () => {
+      // Condense Wikipedia extract via Ollama (bypassed — re-enable when warm)
+      const USE_OLLAMA_CONDENSER = false;
+      let context = poi.wiki?.extract || `${poi.name} — a notable place`;
+      if (USE_OLLAMA_CONDENSER && context.length > 300) {
+        console.log(`[Story] Condensing ${context.length} chars via Ollama`);
+        context = await condenseSummary(context, interests);
+      }
+      console.log(`[Story] Generating story for "${poi.name}" (${length}, ${language})`);
+      return generateStory({ poi, context, interests, tone, length, language, bearing });
+    });
 
     res.json({ story, poi: poi.name });
   } catch (err) {
