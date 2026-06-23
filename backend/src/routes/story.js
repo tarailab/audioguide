@@ -2,8 +2,14 @@ const router = require('express').Router();
 const { condenseSummary } = require('../services/ollama');
 const { generateStory } = require('../services/claude');
 const cache = require('../services/cache');
+const storyLog = require('../services/storyLog');
 
 const STORY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Review the log of every generated story (newest first).
+router.get('/log', (req, res) => {
+  res.json(storyLog.readAll());
+});
 
 router.post('/', async (req, res) => {
   const {
@@ -37,7 +43,22 @@ router.post('/', async (req, res) => {
         context = await condenseSummary(context, interests);
       }
       console.log(`[Story] Generating story for "${poi.name}" (${length}, ${language})`);
-      return generateStory({ poi, context, interests, tone, length, language, bearing });
+      const text = await generateStory({ poi, context, interests, tone, length, language, bearing });
+
+      // Persist every newly generated story for later review.
+      storyLog.append({
+        ts: new Date().toISOString(),
+        id: poi.id || null,
+        name: poi.name,
+        lat: poi.lat ?? null,
+        lon: poi.lon ?? null,
+        place: poi.tags?.place || poi.tags?.historic || poi.tags?.tourism || null,
+        relevanceScore: poi.relevanceScore ?? null,
+        length, language, tone, interests,
+        hasWiki: !!poi.wiki,
+        story: text,
+      });
+      return text;
     });
 
     res.json({ story, poi: poi.name });

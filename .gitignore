@@ -8,4 +8,6 @@ Thumbs.db
 
 # TLS certs and private keys — never commit
 certs/
+# Generated-story log (runtime data)
+backend/data/
 .github-project-id

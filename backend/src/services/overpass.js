@@ -1,7 +1,10 @@
 const OVERPASS_URLS = [
   'https://overpass-api.de/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+
+const PER_MIRROR_TIMEOUT_MS = 12000; // fail over fast when a server is busy
 
 const MIN_GAP_MS = 1200; // min spacing between upstream calls (free tier is ~2 slots)
 
@@ -32,7 +35,7 @@ async function fetchOverpass(query, urlIndex = 0) {
       method: 'POST',
       headers: { 'User-Agent': 'AudioguideApp/1.0 (travel storyteller POC)' },
       body: `data=${encodeURIComponent(query)}`,
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(PER_MIRROR_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     return res.json();
@@ -46,15 +49,20 @@ async function fetchOverpass(query, urlIndex = 0) {
 }
 
 async function queryPOIs(lat, lon, radius) {
+  // Settlements get their own output slot so a city/town is never truncated by
+  // the POI limit in a dense area (cities have lots of historic/tourism nodes).
   const query = `
-[out:json][timeout:10];
+[out:json][timeout:15];
+(
+  node["place"~"city|town|village|hamlet|suburb"](around:${radius},${lat},${lon});
+)->.places;
 (
   node["historic"](around:${radius},${lat},${lon});
   node["tourism"~"museum|attraction|viewpoint|artwork|castle|ruins"](around:${radius},${lat},${lon});
   node["natural"~"peak|waterfall|cave_entrance|hot_spring|volcano|spring"](around:${radius},${lat},${lon});
-  node["place"~"village|hamlet"](around:${radius},${lat},${lon});
-);
-out 40;
+)->.poi;
+.places out 15;
+.poi out 40;
 `.trim();
 
   const data = await schedule(() => fetchOverpass(query));

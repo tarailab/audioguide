@@ -16,20 +16,25 @@ async function batchAll(items, fn, batchSize = 4) {
   return results;
 }
 
-// How story-worthy a place is. Wikipedia presence is the strongest signal of
-// notability; OSM tags add supporting weight. Benches / bus stops score ~1.
-function notability(poi) {
-  const t = poi.tags || {};
+// Tag-only score, known before any Wikipedia lookup. Used to pick which raw
+// POIs are worth enriching, so a big city is never sliced off in a dense area.
+function tagScore(tags = {}) {
   let s = 1;
-  if (poi.wiki) s += 6;
-  if (t.wikidata || t.wikipedia) s += 2;
-  if (t.historic) s += 3;
-  if (t.tourism && t.tourism !== 'information') s += 2;
-  if (t.place === 'city' || t.place === 'town') s += 2;
-  if (t.place === 'village' || t.place === 'hamlet') s += 1;
-  if (t.natural) s += 1;
-  if (t.memorial || t.monument) s += 2;
+  if (tags.wikidata || tags.wikipedia) s += 2;
+  if (tags.historic) s += 3;
+  if (tags.tourism && tags.tourism !== 'information') s += 2;
+  if (tags.place === 'city') s += 5;
+  if (tags.place === 'town') s += 3;
+  if (tags.place === 'village' || tags.place === 'hamlet') s += 1;
+  if (tags.place === 'suburb') s += 1;
+  if (tags.natural) s += 1;
+  if (tags.memorial || tags.monument) s += 2;
   return s;
+}
+
+// Full story-worthiness. Wikipedia presence is the strongest notability signal.
+function notability(poi) {
+  return tagScore(poi.tags) + (poi.wiki ? 6 : 0);
 }
 
 // Enrich raw OSM POIs with Wikipedia + a notability score. Location-independent,
@@ -38,7 +43,11 @@ async function enrichArea(lat, lon, radius) {
   const rawPOIs = await queryPOIs(lat, lon, radius);
   console.log(`[POIs] ${rawPOIs.length} raw POIs near ${lat.toFixed(3)},${lon.toFixed(3)}`);
 
-  const candidates = rawPOIs.slice(0, 12);
+  // Pre-rank by tags before the (limited) Wikipedia enrichment so cities/towns
+  // and historic sites survive the cut in dense areas.
+  const candidates = [...rawPOIs]
+    .sort((a, b) => tagScore(b.tags) - tagScore(a.tags))
+    .slice(0, 12);
   const withContext = await batchAll(candidates, async (poi) => {
     const wiki = await fetchWikipedia(poi.name, poi.tags);
     return { ...poi, wiki };
@@ -62,6 +71,9 @@ router.post('/', async (req, res) => {
 
   try {
     const enriched = await cache.remember(key, POI_TTL_MS, () => enrichArea(lat, lon, radius));
+    // Don't pin an empty result for the full TTL — a transient upstream failure
+    // shouldn't make an area look dead for 15 min. Let it retry soon.
+    if (!enriched.length) cache.set(key, enriched, 30 * 1000);
 
     // Distance + bearing are always recomputed from the exact live position,
     // so caching by grid cell never makes the distances stale.

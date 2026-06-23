@@ -5,6 +5,7 @@ import { useStoryQueue } from '../hooks/useStoryQueue';
 import { primeTTS } from '../services/tts';
 import CompassRose from '../components/CompassRose';
 import MapView from '../components/MapView';
+import BuildBadge from '../components/BuildBadge';
 
 function fmtDist(m) {
   if (m == null) return '';
@@ -116,8 +117,8 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
             <div className="card-row">
               <span className="card-label">
                 {!position ? '📍 Waiting for GPS…'
-                  : status === 'fetching' ? 'Finding places nearby…'
                   : queue.length > 0 ? `📍 ${queue.length} place${queue.length > 1 ? 's' : ''} ahead`
+                  : status === 'fetching' ? '📍 Looking around…'
                   : '📍 No places yet'}
               </span>
               <button
@@ -134,14 +135,17 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
           </div>
         )}
 
-        {/* Nearby list — the one way to pick a specific place */}
-        {queue.length > 0 && !current && (
+        {/* Nearby list — always visible so you can switch places anytime */}
+        {queue.length > 0 && (
           <>
             <p className="queue-label">Nearby — tap to play</p>
             <div className="queue-strip">
-              {queue.slice(0, 6).map(p => (
+              {queue.slice(0, 8).map(p => (
                 <button key={p.id} className="queue-chip" onClick={() => { primeTTS(); playNow(p); }}>
-                  <span className="queue-name">{p.name}</span>
+                  <span className="queue-name">
+                    {p.name}
+                    {p.relevanceScore != null && <span className="queue-score">{p.relevanceScore}</span>}
+                  </span>
                   <span className="queue-dist">{fmtDist(p.distance)}</span>
                 </button>
               ))}
@@ -152,6 +156,8 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
       </div>
 
       {gpsError && <div className="error-banner">GPS: {gpsError}</div>}
+
+      <BuildBadge />
     </div>
   );
 }

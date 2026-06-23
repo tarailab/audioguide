@@ -47,15 +47,17 @@ export function useGPS() {
           }
         }
 
-        // Travel direction: prefer the device's GPS course, else derive it
-        // from movement between the last two fixes (needs a few metres moved
-        // so jitter doesn't spin the arrow).
-        if (Number.isFinite(pos.coords.heading)) {
-          setCourse(pos.coords.heading);
-        } else if (prev.current) {
+        // Travel direction. Derive it from actual movement between the last
+        // two fixes first — that's reliable while driving. Only fall back to
+        // the device's reported GPS heading when we haven't moved enough, and
+        // ignore a reported heading of exactly 0, which many Android devices
+        // emit to mean "unknown" (that bug pinned the map to north).
+        if (prev.current) {
           const movedM = haversineMeters(prev.current.lat, prev.current.lon, lat, lon);
           if (movedM > 5) {
             setCourse(bearingDeg(prev.current.lat, prev.current.lon, lat, lon));
+          } else if (Number.isFinite(pos.coords.heading) && pos.coords.heading > 0) {
+            setCourse(pos.coords.heading);
           }
         }
 

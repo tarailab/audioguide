@@ -8,6 +8,8 @@ services:
       OLLAMA_URL: http://host.docker.internal:11434
     expose:
       - "3001"
+    volumes:
+      - ./backend/data:/app/data   # persist generated-story log across rebuilds
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

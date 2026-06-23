@@ -211,19 +211,25 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
     stop();
     busy.current = true;
     setStatus('fetching');
+    let handedOff = false;
     try {
       const pois = await fetchPOIs({ ...position, heading: course ?? heading, interests: prefs.interests, radius: discoveryRadiusM(speedKmh) });
       if (token !== playToken.current) return;
       const candidates = pois.filter(p => !visitedIds.current.has(p.id)).sort((a, b) => a.distance - b.distance);
       setQueue(candidates);
       const next = candidates[0];
-      if (!next) { setStatus('idle'); busy.current = false; return; }
+      if (!next) return;
+      handedOff = true;          // generateAndPlay now owns status/busy
       await generateAndPlay(next);
     } catch (err) {
-      if (token !== playToken.current) return;
       console.error('[Queue] playNow error:', err);
-      setStatus('idle');
-      busy.current = false;
+    } finally {
+      // Never leave the UI stuck on "fetching": if we didn't hand off to a
+      // story and nothing newer took over, fall back to idle.
+      if (!handedOff && token === playToken.current) {
+        setStatus('idle');
+        busy.current = false;
+      }
     }
   }, [position, heading, course, speedKmh, prefs, queue, generateAndPlay]);
 

@@ -112,6 +112,20 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   font-size: 20px; padding: 2px 6px;
   border-radius: 8px; color: var(--text-dim);
 }
+
+.build-badge {
+  position: fixed;
+  top: 64px; left: 8px;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex; flex-direction: column;
+  font-size: 9px; line-height: 1.3;
+  color: rgba(255,255,255,0.7);
+  background: rgba(15,23,42,0.6);
+  padding: 2px 6px; border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.build-ago { color: var(--accent); }
 .auto-btn.auto-on  { color: var(--accent); }
 .auto-btn.auto-off { opacity: 0.55; }
 
@@ -224,7 +238,13 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   -webkit-tap-highlight-color: transparent;
 }
 .queue-chip:active { opacity: 0.7; }
-.queue-name { font-size: 13px; color: var(--text); font-weight: 500; }
+.queue-name { font-size: 13px; color: var(--text); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+.queue-score {
+  font-size: 10px; font-weight: 700;
+  color: var(--accent);
+  background: rgba(74,158,255,0.15);
+  border-radius: 6px; padding: 1px 5px;
+}
 .queue-dist { font-size: 11px; color: var(--accent); margin-top: 2px; }
 
 /* ── Spinner ──────────────────────────────────── */
