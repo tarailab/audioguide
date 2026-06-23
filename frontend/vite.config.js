@@ -16,8 +16,8 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
         ],
       },
     }),
@@ -25,9 +25,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    allowedHosts: ['tarailab.tail1868ac.ts.net', 'localhost'],
     proxy: {
-      '/api': 'http://localhost:3001',
-      '/health': 'http://localhost:3001',
+      '/api': 'http://backend:3001',
+      '/health': 'http://backend:3001',
     },
   },
 });

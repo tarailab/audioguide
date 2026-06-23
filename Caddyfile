@@ -1,27 +1,13 @@
-# Audioguide — Caddy reverse proxy
-# Start: caddy run --config D:\Projects\audioguide\Caddyfile
-#
-# HTTPS on port 8443 (no admin required on Windows).
-# Phone URL: https://tarailab.tail1868ac.ts.net:8443
-#
-# One-time phone setup: install CA cert on Android phone
-#   File: C:\Users\Ailab\AppData\Local\mkcert\rootCA.pem
-#   See docs/PHONE_SETUP.md for full instructions.
-
 {
     https_port 8443
     http_port  8080
 }
 
 tarailab.tail1868ac.ts.net:8443, 100.118.34.9:8443, localhost:8443 {
-    tls D:\Projects\audioguide\certs\audioguide.crt D:\Projects\audioguide\certs\audioguide.key
+    tls /certs/audioguide.crt /certs/audioguide.key
 
-    # API routes — direct to Node backend
-    reverse_proxy /api/* localhost:3001
-    reverse_proxy /health localhost:3001
+    reverse_proxy /api/* backend:3001
+    reverse_proxy /health backend:3001
 
-    # Vite dev server — frontend + HMR websocket
-    reverse_proxy /* localhost:5173 {
-        header_up Host {upstream_hostport}
-    }
+    reverse_proxy /* frontend:5173
 }

@@ -11,10 +11,20 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Compass bearing (0=N, 90=E) from point 1 to point 2.
+function bearingDeg(lat1, lon1, lat2, lon2) {
+  const toRad = d => d * Math.PI / 180;
+  const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
 export function useGPS() {
   const [position, setPosition] = useState(null);
   const [speed, setSpeed] = useState(0);
   const [mode, setMode] = useState('walk');
+  const [course, setCourse] = useState(null); // travel direction, deg from N
   const [error, setError] = useState(null);
   const prev = useRef(null);
 
@@ -37,6 +47,18 @@ export function useGPS() {
           }
         }
 
+        // Travel direction: prefer the device's GPS course, else derive it
+        // from movement between the last two fixes (needs a few metres moved
+        // so jitter doesn't spin the arrow).
+        if (Number.isFinite(pos.coords.heading)) {
+          setCourse(pos.coords.heading);
+        } else if (prev.current) {
+          const movedM = haversineMeters(prev.current.lat, prev.current.lon, lat, lon);
+          if (movedM > 5) {
+            setCourse(bearingDeg(prev.current.lat, prev.current.lon, lat, lon));
+          }
+        }
+
         prev.current = { lat, lon, time: now };
         setSpeed(spd);
         setMode(spd > CAR_THRESHOLD_MS ? 'car' : 'walk');
@@ -49,5 +71,5 @@ export function useGPS() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
 
-  return { position, speed, speedKmh: Math.round((speed || 0) * 3.6), mode, error };
+  return { position, speed, speedKmh: Math.round((speed || 0) * 3.6), mode, course, error };
 }
