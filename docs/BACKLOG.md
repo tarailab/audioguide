@@ -4,6 +4,72 @@ Captured from the 2026-06-23 helicopter-view UX/architecture review.
 Ordered roughly by experience-per-effort. Not all of these are committed work —
 this is the running list of known improvements.
 
+## ⏭️ Next iteration (decided 2026-06-24 — OSM opportunities)
+
+1. **Wikidata fact-grounding** — from a POI's `wikidata=Q…`, fetch structured
+   facts (founded, architect, height, notable people) and feed those to Claude
+   instead of free prose → fewer hallucinations, better stories.
+2. **Expanded POI categories** — add `man_made=lighthouse/windmill/watermill/
+   tower/obelisk`, `tourism=viewpoint/artwork`, UNESCO/`heritage=*`, broader
+   `historic`/`natural`. Extend the Overpass query + notability scoring.
+3. **Multilingual names + etymology** — use `name:en`/`name:lt` per language
+   (fixes naming/pronunciation), and `name:etymology[:wikidata]` as a story hook.
+4. **Image thumbnail** — `wikimedia_commons`/`image`: small thumbnail *inside*
+   the story text, hidden by default, **expands on click** (not a big image —
+   app is audio-first).
+
+## 📋 Backlog (decided 2026-06-24)
+
+- **Region & border announcements** *(for sure)* — admin boundaries → "entering
+  Samogitia", "crossing into Latvia". Needs crossing-detection logic.
+- **Themed journeys** *(nice to have)* — map interests to real OSM tag sets:
+  "castles & manors", "war history", "natural wonders". Includes a
+  **geology / industrial / underground** theme for city dwellers (volcanoes,
+  caves, mines, quarries, abandoned industry, tunnels, bunkers — see tag notes
+  in session). Baltics are geology-poor (flat/glaciated); Spain + Canaries are
+  geology-rich → another reason Spain is a good 2nd region.
+- **Driver-utility layer** *(nice to have)* — fuel/EV/food/rest ahead
+  (`amenity=*`). Different feature from the storyteller core; keep it from
+  diluting focus.
+
+## 🛠️ Idle / background tasks (decided 2026-06-24, important)
+
+Run when not actively working on other things (consider a background agent).
+Best split into three dependent steps:
+
+- **B1. Self-hosted POI source — ✅ DONE (LT+LV, 2026-06-24).**
+  `wiktorn/overpass-api` container with merged LT+LV extract (342 MB pbf,
+  ~319k tagged nodes). Backend uses it first inside the Baltics bbox, public
+  mirrors as fallback elsewhere. No more 504s in-region. *Next regions:*
+  Spain → assess Europe disk/RAM (use filtered extract for those).
+- **B2. Model comparison for story generation** (do BEFORE bulk gen).
+  Compare local (Ollama) vs Claude vs GPT on quality / cost / latency over a
+  representative POI sample. Likely conclusion: **local model for free bulk
+  pre-gen, Claude on-demand for premium** — controls cost.
+- **B3. Bulk pre-generate stories for all of LT** (depends on B1 + B2).
+  Generate + cache a baseline story per notable POI → instant playback,
+  offline, reviewable corpus. Cost depends entirely on the model chosen in B2.
+  *Open scope: how many POIs, which length/tone/language matrix — clarify.*
+
+## 📌 Parked
+
+### Public / closed-testing hosting
+Expose to outside testers without LAN/Tailscale exposure; Google-login +
+whitelist. Approach decided, not built. Full plan: `D:\AI\PUBLIC_HOSTING_PLAYBOOK.md`
+(Cloudflare Tunnel + Access default; VPS + oauth2-proxy scale-up). Needs the
+hardening checklist (rate limits, clamp params, strip admin) before exposure.
+
+### POI source resilience / alternatives
+Overpass public servers are flaky (504s, rate limits) — the single biggest
+reliability risk. Options evaluated 2026-06-24:
+- **Self-host Overpass** with a regional OSM extract (LT+LV from Geofabrik) on
+  the lab box → kills flakiness, keeps OSM's rich heritage tags, free. **Top pick.**
+- **Wikipedia GeoSearch API** as a complementary source — returns places that
+  *have an article* (= notable by definition, with story text we already fetch).
+- **Google Places: rejected** — costs $, ToS restricts caching/storing results
+  and requires display on a Google map, and it's business-oriented (worse for
+  hillforts/heritage than OSM). Poor fit for a heritage storyteller.
+
 ## 🔴 Structural (define how good the app can get)
 
 ### 1. Look-ahead pre-generation (the driving fix)

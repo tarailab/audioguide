@@ -1,8 +1,20 @@
-const OVERPASS_URLS = [
+// Self-hosted Overpass holds the LT+LV extract — fast, no rate limits. Use it
+// first inside the Baltics bbox; fall back to public mirrors elsewhere (and if
+// the local one is ever down).
+const LOCAL_OVERPASS = process.env.OVERPASS_LOCAL_URL || 'http://overpass/api/interpreter';
+const PUBLIC_URLS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+
+// Area covered by the local extract (Lithuania + Latvia, padded).
+function inLocalCoverage(lat, lon) {
+  return lat >= 53.8 && lat <= 58.2 && lon >= 20.9 && lon <= 28.4;
+}
+function urlsFor(lat, lon) {
+  return inLocalCoverage(lat, lon) ? [LOCAL_OVERPASS, ...PUBLIC_URLS] : PUBLIC_URLS;
+}
 
 const PER_MIRROR_TIMEOUT_MS = 12000; // fail over fast when a server is busy
 
@@ -27,22 +39,24 @@ function schedule(task) {
   return run;
 }
 
-async function fetchOverpass(query, urlIndex = 0) {
-  const url = OVERPASS_URLS[urlIndex % OVERPASS_URLS.length];
-  console.log(`[Overpass] Trying ${url}`);
+async function fetchOverpass(query, urls, urlIndex = 0) {
+  const url = urls[urlIndex];
+  const isLocal = url === LOCAL_OVERPASS;
+  console.log(`[Overpass] Trying ${isLocal ? 'LOCAL' : url}`);
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'User-Agent': 'AudioguideApp/1.0 (travel storyteller POC)' },
       body: `data=${encodeURIComponent(query)}`,
-      signal: AbortSignal.timeout(PER_MIRROR_TIMEOUT_MS),
+      // Local has no rate limit and is fast; give it a short patience.
+      signal: AbortSignal.timeout(isLocal ? 8000 : PER_MIRROR_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     return res.json();
   } catch (err) {
-    if (urlIndex < OVERPASS_URLS.length - 1) {
-      console.log(`[Overpass] ${url} failed (${err.message}), trying mirror ${urlIndex + 1}`);
-      return fetchOverpass(query, urlIndex + 1);
+    if (urlIndex < urls.length - 1) {
+      console.log(`[Overpass] ${isLocal ? 'LOCAL' : url} failed (${err.message}), trying next`);
+      return fetchOverpass(query, urls, urlIndex + 1);
     }
     throw new Error(`All Overpass mirrors failed: ${err.message}`);
   }
@@ -65,7 +79,8 @@ async function queryPOIs(lat, lon, radius) {
 .poi out 40;
 `.trim();
 
-  const data = await schedule(() => fetchOverpass(query));
+  const urls = urlsFor(lat, lon);
+  const data = await schedule(() => fetchOverpass(query, urls));
 
   return data.elements
     .filter(el => el.tags?.name)

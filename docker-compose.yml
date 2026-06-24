@@ -1,5 +1,28 @@
 services:
 
+  # Self-hosted Overpass (LT+LV extract) — kills public-server flakiness.
+  # First boot builds the DB from osm/baltics.osm.pbf (a few minutes); after
+  # that it serves at http://overpass/api/interpreter on this network.
+  # NOTE: after a FRESH DB build the image leaves /db as 700, which makes the
+  # web process fail with "Permission denied … osm3s_osm_base". One-time fix:
+  #   docker exec audioguide-overpass-1 chmod -R o+rX /db
+  # (persists in the named volume; only needed again if the volume is wiped).
+  overpass:
+    image: wiktorn/overpass-api
+    restart: unless-stopped
+    expose:
+      - "80"
+    environment:
+      OVERPASS_MODE: init
+      OVERPASS_META: "no"
+      OVERPASS_PLANET_URL: "file:///osmdata/baltics.osm.pbf"
+      OVERPASS_PLANET_PREPROCESS: 'osmium cat -o /db/planet.osm.bz2 /osmdata/baltics.osm.pbf --overwrite'
+      OVERPASS_STOP_AFTER_INIT: "false"
+      OVERPASS_RULES_LOAD: "10"
+    volumes:
+      - ./osm:/osmdata:ro
+      - overpass_db:/db
+
   backend:
     build: ./backend
     restart: unless-stopped
@@ -11,6 +34,7 @@ services:
       - "3001"
     depends_on:
       - tts
+      - overpass
     volumes:
       - ./backend/data:/app/data   # persist generated-story log across rebuilds
     extra_hosts:
@@ -50,3 +74,6 @@ services:
     depends_on:
       - backend
       - frontend
+
+volumes:
+  overpass_db:

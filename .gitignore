@@ -13,3 +13,4 @@ backend/data/
 # Downloaded Piper voice models
 tts/
 .github-project-id
+osm/
