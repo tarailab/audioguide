@@ -9,6 +9,7 @@ app.use(express.json());
 app.use('/health', require('./routes/health'));
 app.use('/api/pois', require('./routes/pois'));
 app.use('/api/story', require('./routes/story'));
+app.use('/api/tts', require('./routes/tts'));
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {

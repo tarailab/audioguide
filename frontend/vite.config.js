@@ -1,30 +1,19 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
+
+// NOTE: vite-plugin-pwa intentionally removed — its service worker cached the
+// app and served stale bundles across reloads, which made iteration impossible.
+// Reinstate only for a production build, never for the dev server.
 
 export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      manifest: {
-        name: 'AI Audioguide',
-        short_name: 'Audioguide',
-        description: 'GPS-aware AI travel storyteller',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
-        display: 'standalone',
-        orientation: 'portrait',
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-        ],
-      },
-    }),
-  ],
+  plugins: [react()],
   server: {
     host: '0.0.0.0',
     port: 5173,
+    // Windows + Docker bind mounts don't deliver native file-change events to
+    // the container, so Vite never sees edits and serves stale transforms.
+    // Polling fixes it — edits now hot-reload without a container restart.
+    watch: { usePolling: true, interval: 300 },
     allowedHosts: ['tarailab.tail1868ac.ts.net', 'localhost'],
     proxy: {
       '/api': 'http://backend:3001',

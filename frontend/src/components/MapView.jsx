@@ -56,7 +56,15 @@ export default function MapView({ position, queue, current, course, headingUp = 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
     }).addTo(mapRef.current);
-    mapRef.current.invalidateSize();
+    // Re-measure after layout settles (the oversized 200% container reports a
+    // wrong size if measured synchronously → map renders half-width).
+    const remeasure = () => mapRef.current?.invalidateSize();
+    requestAnimationFrame(remeasure);
+    setTimeout(remeasure, 200);
+    setTimeout(remeasure, 600);
+    const ro = new ResizeObserver(remeasure);
+    ro.observe(containerRef.current);
+    window.addEventListener('orientationchange', remeasure);
 
     // Stop auto-following once the user drags the map; resume by tapping
     // their own arrow (re-centres below).

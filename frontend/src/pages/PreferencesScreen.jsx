@@ -32,6 +32,23 @@ export default function PreferencesScreen({ prefs, onChange, onBack }) {
       </section>
 
       <section className="pref-section">
+        <h2>Voice</h2>
+        <div className="btn-group">
+          {[['natural', '🔊 Natural'], ['device', '📱 Device']].map(([val, label]) => (
+            <button
+              key={val}
+              className={`group-btn ${prefs.voiceEngine === val ? 'active' : ''}`}
+              onClick={() => set('voiceEngine', val)}
+            >{label}</button>
+          ))}
+        </div>
+        <p className="pref-hint">
+          Natural: server voice, routes through Android Auto / car speakers.
+          Device: phone’s built-in voice — offline, but may cut off on Android Auto.
+        </p>
+      </section>
+
+      <section className="pref-section">
         <h2>Language</h2>
         <div className="btn-group">
           {[['en', '🇬🇧 English'], ['lt', '🇱🇹 Lithuanian']].map(([val, label]) => (

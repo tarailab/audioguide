@@ -7,6 +7,7 @@ export const DEFAULTS = {
   density: 'normal',
   language: 'en',
   storyProvider: 'claude',
+  voiceEngine: 'natural', // 'natural' (server MP3, works on Android Auto) | 'device' (browser voice)
 };
 
 export const INTEREST_OPTIONS = [

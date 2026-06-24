@@ -9,5 +9,7 @@ tarailab.tail1868ac.ts.net:8443, 100.118.34.9:8443, localhost:8443 {
     reverse_proxy /api/* backend:3001
     reverse_proxy /health backend:3001
 
+    # Dev app: never let the browser cache it, so edits always show up on reload.
+    header /* Cache-Control "no-store, no-cache, must-revalidate"
     reverse_proxy /* frontend:5173
 }

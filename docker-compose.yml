@@ -6,8 +6,11 @@ services:
     env_file: ./backend/.env
     environment:
       OLLAMA_URL: http://host.docker.internal:11434
+      TTS_URL: http://tts:8000/v1/audio/speech
     expose:
       - "3001"
+    depends_on:
+      - tts
     volumes:
       - ./backend/data:/app/data   # persist generated-story log across rebuilds
     extra_hosts:
@@ -23,6 +26,16 @@ services:
       - /app/node_modules        # keep image's installed deps
     depends_on:
       - backend
+
+  tts:
+    image: ghcr.io/matatonic/openedai-speech-min:latest
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - ./tts/voices:/app/voices   # cache downloaded Piper voices
+    environment:
+      TTS_HOME: /app/voices
 
   caddy:
     image: caddy:2-alpine

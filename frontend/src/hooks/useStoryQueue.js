@@ -150,7 +150,7 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
         setStatus('idle');
         setCurrent(null);
         busy.current = false;
-      });
+      }, poi.name, prefs.voiceEngine);
     } catch (err) {
       if (token !== playToken.current) return;
       console.error('[Queue] Story error:', err);
