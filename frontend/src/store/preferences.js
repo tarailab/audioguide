@@ -8,6 +8,7 @@ export const DEFAULTS = {
   language: 'en',
   storyProvider: 'claude',
   voiceEngine: 'natural', // 'natural' (server MP3, works on Android Auto) | 'device' (browser voice)
+  admin: false,           // testing overlay (search ellipse, tuning sliders)
 };
 
 export const INTEREST_OPTIONS = [

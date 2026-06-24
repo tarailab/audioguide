@@ -137,10 +137,11 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   margin-bottom:8px; padding-bottom:8px;
   border-bottom:1px solid rgba(255,255,255,0.1);
 }
-.admin-row { display:flex; align-items:center; gap:6px; margin:7px 0; }
-.admin-lbl { flex:0 0 88px; color: var(--text-dim); font-size:11px; }
-.admin-row input[type=range] { flex:1; accent-color:#a855f7; }
-.admin-val { flex:0 0 48px; text-align:right; font-variant-numeric:tabular-nums; }
+.admin-row { margin: 9px 0; }
+.admin-row-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px; }
+.admin-lbl { color: var(--text-dim); font-size:11px; }
+.admin-val { color: var(--text); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; }
+.admin-row input[type=range] { width:100%; accent-color:#a855f7; }
 .admin-reset {
   width:100%; margin-top:8px; padding:6px;
   background: rgba(168,85,247,0.2); color:#d8b4fe;

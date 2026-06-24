@@ -112,6 +112,23 @@ export default function PreferencesScreen({ prefs, onChange, onBack }) {
           ))}
         </div>
       </section>
+
+      <section className="pref-section">
+        <h2>Admin / testing</h2>
+        <div className="btn-group">
+          {[[false, 'Off'], [true, 'On 🛠']].map(([val, label]) => (
+            <button
+              key={String(val)}
+              className={`group-btn ${!!prefs.admin === val ? 'active' : ''}`}
+              onClick={() => set('admin', val)}
+            >{label}</button>
+          ))}
+        </div>
+        <p className="pref-hint">
+          Shows the search-area ellipse, place scores, direction line and live
+          tuning sliders. For testing — leave Off normally.
+        </p>
+      </section>
     </div>
   );
 }

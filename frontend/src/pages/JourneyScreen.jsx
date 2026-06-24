@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useGPS } from '../hooks/useGPS';
 import { useCompass } from '../hooks/useCompass';
 import { useStoryQueue } from '../hooks/useStoryQueue';
@@ -29,15 +29,10 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
     return !v;
   });
 
-  // Admin/testing mode — enable with ?admin=1, disable with ?admin=0.
-  const [adminOn, setAdminOn] = useState(() => localStorage.getItem('audioguide-admin') === '1');
+  // Admin/testing mode — toggled in Preferences (or ?admin=1, handled in App).
+  const adminOn = !!prefs.admin;
   const [adminPanel, setAdminPanel] = useState(false);
   const [searchParams, setSearchParams] = useState(loadSearchParams);
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search).get('admin');
-    if (p === '1') { localStorage.setItem('audioguide-admin', '1'); setAdminOn(true); }
-    if (p === '0') { localStorage.removeItem('audioguide-admin'); setAdminOn(false); }
-  }, []);
   const updateParams = (p) => { setSearchParams(p); saveSearchParams(p); };
   const resetParams = () => updateParams({ ...SEARCH_DEFAULTS });
 

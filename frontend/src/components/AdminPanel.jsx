@@ -1,6 +1,12 @@
 import { SEARCH_FIELDS, SEARCH_DEFAULTS } from '../store/searchParams';
 import { computeReaches } from '../utils/searchArea';
 
+// Format a param value for display: metres → km when large, counts as-is.
+function fmtVal(unit, v) {
+  if (unit !== 'm') return String(v);
+  return v >= 1000 ? `${(v / 1000).toFixed(v % 1000 ? 1 : 0)} km` : `${v} m`;
+}
+
 // Admin / testing overlay for tuning the search area live. Gated by ?admin=1.
 // Clear this whole component out before any public release.
 export default function AdminPanel({ params, onChange, onReset, onClose, speedKmh, queue, area }) {
@@ -25,14 +31,16 @@ export default function AdminPanel({ params, onChange, onReset, onClose, speedKm
       </div>
 
       {SEARCH_FIELDS.map(([key, min, max, step, label, unit]) => (
-        <label key={key} className="admin-row">
-          <span className="admin-lbl">{label}</span>
+        <div key={key} className="admin-row">
+          <div className="admin-row-top">
+            <span className="admin-lbl">{label}</span>
+            <span className="admin-val">{fmtVal(unit, params[key])}</span>
+          </div>
           <input
             type="range" min={min} max={max} step={step}
             value={params[key]} onChange={(e) => set(key, e.target.value)}
           />
-          <span className="admin-val">{params[key]}{unit}</span>
-        </label>
+        </div>
       ))}
 
       <button className="admin-reset" onClick={onReset}>Reset defaults</button>
