@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGPS } from '../hooks/useGPS';
 import { useCompass } from '../hooks/useCompass';
 import { useStoryQueue } from '../hooks/useStoryQueue';
@@ -6,11 +6,15 @@ import { primeTTS } from '../services/tts';
 import CompassRose from '../components/CompassRose';
 import MapView from '../components/MapView';
 import BuildBadge from '../components/BuildBadge';
+import AdminPanel from '../components/AdminPanel';
+import { loadSearchParams, saveSearchParams, SEARCH_DEFAULTS } from '../store/searchParams';
 
 function fmtDist(m) {
   if (m == null) return '';
   return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`;
 }
+
+const DROP_MS = 90000; // must match useStoryQueue — for fade opacity
 
 export default function JourneyScreen({ prefs, onOpenPrefs }) {
   const { position, speedKmh, mode, course, error: gpsError } = useGPS();
@@ -25,8 +29,21 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
     return !v;
   });
 
-  const { queue, current, status, skip, togglePause, thumbsUp, thumbsDown, playNow } = useStoryQueue({
+  // Admin/testing mode — enable with ?admin=1, disable with ?admin=0.
+  const [adminOn, setAdminOn] = useState(() => localStorage.getItem('audioguide-admin') === '1');
+  const [adminPanel, setAdminPanel] = useState(false);
+  const [searchParams, setSearchParams] = useState(loadSearchParams);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('admin');
+    if (p === '1') { localStorage.setItem('audioguide-admin', '1'); setAdminOn(true); }
+    if (p === '0') { localStorage.removeItem('audioguide-admin'); setAdminOn(false); }
+  }, []);
+  const updateParams = (p) => { setSearchParams(p); saveSearchParams(p); };
+  const resetParams = () => updateParams({ ...SEARCH_DEFAULTS });
+
+  const { queue, current, status, area, skip, togglePause, thumbsUp, thumbsDown, playNow } = useStoryQueue({
     position, heading, mode, speedKmh, course, prefs, autoMode,
+    searchParams: adminOn ? searchParams : null,
   });
 
   const [expanded, setExpanded] = useState(false);
@@ -45,6 +62,9 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
           course={course}
           headingUp={speedKmh > 5}
           onPoiTap={(poi) => playNow(poi)}
+          admin={adminOn}
+          searchParams={searchParams}
+          speedKmh={speedKmh}
         />
       </div>
 
@@ -70,9 +90,25 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
             aria-label="Reload app"
             title="Reload app"
           >↻</button>
+          {adminOn && (
+            <button className="icon-btn" onClick={() => setAdminPanel(v => !v)}
+                    aria-label="Admin tuning" title="Admin tuning">🛠</button>
+          )}
           <button className="icon-btn" onClick={onOpenPrefs} aria-label="Preferences">⚙</button>
         </div>
       </div>
+
+      {adminOn && adminPanel && (
+        <AdminPanel
+          params={searchParams}
+          onChange={updateParams}
+          onReset={resetParams}
+          onClose={() => setAdminPanel(false)}
+          speedKmh={speedKmh}
+          queue={queue}
+          area={area}
+        />
+      )}
 
       {/* iOS compass permission */}
       {permissionNeeded && heading == null && (
@@ -140,15 +176,21 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
           <>
             <p className="queue-label">Nearby — tap to play</p>
             <div className="queue-strip">
-              {queue.slice(0, 8).map(p => (
-                <button key={p.id} className="queue-chip" onClick={() => { primeTTS(); playNow(p); }}>
-                  <span className="queue-name">
-                    {p.name}
-                    {p.relevanceScore != null && <span className="queue-score">{p.relevanceScore}</span>}
-                  </span>
-                  <span className="queue-dist">{fmtDist(p.distance)}</span>
-                </button>
-              ))}
+              {queue.slice(0, 8).map(p => {
+                // Fade places that have left the search area (no longer refreshed).
+                const age = Date.now() - (p.lastSeen ?? Date.now());
+                const opacity = Math.max(0.35, 1 - age / DROP_MS);
+                return (
+                  <button key={p.id} className="queue-chip" style={{ opacity }}
+                          onClick={() => { primeTTS(); playNow(p); }}>
+                    <span className="queue-name">
+                      {p.name}
+                      {adminOn && p.relevanceScore != null && <span className="queue-score">{p.relevanceScore}</span>}
+                    </span>
+                    <span className="queue-dist">{fmtDist(p.distance)}</span>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}

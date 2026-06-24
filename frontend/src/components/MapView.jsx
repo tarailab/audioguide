@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { computeReaches, ellipseLatLngs } from '../utils/searchArea';
 
 // Fix Leaflet default marker icons broken by bundlers
 delete L.Icon.Default.prototype._getIconUrl;
@@ -40,13 +41,16 @@ const PLAYING_ICON = L.divIcon({
   iconAnchor: [8, 8],
 });
 
-export default function MapView({ position, queue, current, course, headingUp = true, onPoiTap }) {
+export default function MapView({ position, queue, current, course, headingUp = true, onPoiTap,
+  admin = false, searchParams = null, speedKmh = 0 }) {
   const containerRef = useRef(null);
   const rotWrapRef = useRef(null);
   const mapRef = useRef(null);
   const youRef = useRef(null);
   const poiMarkersRef = useRef({});
   const followRef = useRef(true);
+  const ellipseRef = useRef(null);
+  const dirLineRef = useRef(null);
 
   // Init map once
   useEffect(() => {
@@ -100,6 +104,31 @@ export default function MapView({ position, queue, current, course, headingUp = 
   useEffect(() => {
     if (youRef.current) youRef.current.setIcon(youIcon(course));
   }, [course]);
+
+  // ── Admin overlay: search-area ellipse + direction line to the playing place ──
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+
+    // Search ellipse
+    if (ellipseRef.current) { ellipseRef.current.remove(); ellipseRef.current = null; }
+    if (admin && position && searchParams) {
+      const R = computeReaches(speedKmh, searchParams);
+      const ring = ellipseLatLngs(position.lat, position.lon, course, R);
+      ellipseRef.current = L.polygon(ring, {
+        color: '#a855f7', weight: 2, fillColor: '#a855f7', fillOpacity: 0.06, interactive: false,
+      }).addTo(map);
+    }
+
+    // Direction line from you to the place being played
+    if (dirLineRef.current) { dirLineRef.current.remove(); dirLineRef.current = null; }
+    if (admin && position && current?.poi?.lat) {
+      dirLineRef.current = L.polyline(
+        [[position.lat, position.lon], [current.poi.lat, current.poi.lon]],
+        { color: '#22c55e', weight: 2, dashArray: '6 6', interactive: false },
+      ).addTo(map);
+    }
+  }, [admin, position, course, speedKmh, searchParams, current]);
 
   // Update POI markers
   useEffect(() => {

@@ -1,13 +1,13 @@
 const BASE = import.meta.env.VITE_API_URL || '';
 
-export async function fetchPOIs({ lat, lon, heading, interests, radius }) {
+export async function fetchPOIs({ lat, lon, speedKmh, course, heading, interests, params }) {
   const res = await fetch(`${BASE}/api/pois`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lat, lon, heading, interests, radius }),
+    body: JSON.stringify({ lat, lon, speedKmh, course, heading, interests, params }),
   });
   if (!res.ok) throw new Error(`POI fetch failed: ${res.status}`);
-  return res.json();
+  return res.json(); // { places: [...], area: {...} }
 }
 
 export async function fetchStory({ poi, interests, tone, length, language, bearing }) {

@@ -29,11 +29,10 @@ function angleBetween(a, b) {
   return d > 180 ? 360 - d : d;
 }
 
-// How far ahead to look for places, scaled by speed.
-// ~1 km walking → ~5 km at 100 km/h, capped at 6 km.
-function discoveryRadiusM(speedKmh) {
-  const km = Math.min(6, Math.max(1, 1 + (speedKmh || 0) / 25));
-  return Math.round(km * 1000);
+// Re-discover after moving roughly this far (scales with speed). The search
+// radius itself is computed by the backend now.
+function rediscoverThresholdM(speedKmh) {
+  return Math.min(1500, Math.max(200, Math.round(200 + (speedKmh || 0) * 8)));
 }
 
 // How close a place must be before we start its story, scaled by speed so a
@@ -44,13 +43,35 @@ function triggerDistanceM(speedKmh) {
   return Math.min(4000, Math.max(200, Math.round(200 + (speedKmh || 0) * 30)));
 }
 
-export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, prefs, autoMode = true }) {
+const DROP_MS = 90000; // keep a place this long after it leaves the search set, then drop
+
+// Merge fresh discovery results into the queue. Places the backend still
+// returns are refreshed (lastSeen = now). Places it stopped returning linger
+// and fade until DROP_MS passes, then drop. Played places are removed.
+function mergeQueue(prev, places, visited) {
+  const now = Date.now();
+  const fresh = new Map(places.filter(p => !visited.has(p.id)).map(p => [p.id, p]));
+  const seen = new Set();
+  const out = [];
+  prev.forEach(old => {
+    if (visited.has(old.id)) return;
+    seen.add(old.id);
+    const np = fresh.get(old.id);
+    if (np) out.push({ ...np, lastSeen: now });
+    else if (now - (old.lastSeen ?? now) <= DROP_MS) out.push(old); // fading, keep
+  });
+  fresh.forEach((np, id) => { if (!seen.has(id)) out.push({ ...np, lastSeen: now }); });
+  return out.sort((a, b) => a.distance - b.distance);
+}
+
+export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, prefs, autoMode = true, searchParams = null }) {
   const [queue, setQueue] = useState([]);
   const [current, setCurrent] = useState(null);
   const [status, setStatus] = useState('idle'); // idle | fetching | loading | playing | paused
   const [reactions, setReactions] = useState(() => {
     try { return JSON.parse(localStorage.getItem('audioguide-reactions') || '[]'); } catch { return []; }
   });
+  const [area, setArea] = useState(null); // current search-area params (for admin overlay)
 
   const visitedIds = useRef(new Set());
   const lastFetchPos = useRef(null);
@@ -70,23 +91,17 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
     // Time throttle: never discover more than once every 8s, no matter how
     // fast position updates arrive.
     if (Date.now() - lastFetchAt.current < 8000) return;
-    const radius = discoveryRadiusM(speedKmh);
-    // Re-discover once we've moved ~a quarter of the look-ahead distance.
-    const moveThreshold = Math.min(1500, Math.max(150, Math.round(radius * 0.25)));
+    const moveThreshold = rediscoverThresholdM(speedKmh);
     const moved = !lastFetchPos.current || haversine(position, lastFetchPos.current) > moveThreshold;
     if (!moved) return;
     lastFetchPos.current = position;
     lastFetchAt.current = Date.now();
     discovering.current = true;
 
-    fetchPOIs({ ...position, heading: course ?? heading, interests: prefs.interests, radius })
-      .then(pois => {
-        const fresh = pois.filter(p => !visitedIds.current.has(p.id));
-        setQueue(prev => {
-          const existing = new Set(prev.map(p => p.id));
-          const toAdd = fresh.filter(p => !existing.has(p.id));
-          return [...prev, ...toAdd].sort((a, b) => a.distance - b.distance);
-        });
+    fetchPOIs({ ...position, speedKmh, course, heading, interests: prefs.interests, params: searchParams })
+      .then(({ places, area: a }) => {
+        setArea(a);
+        setQueue(prev => mergeQueue(prev, places, visitedIds.current));
       })
       .catch(err => console.error('[Queue] POI fetch error:', err))
       .finally(() => { discovering.current = false; });
@@ -213,9 +228,10 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
     setStatus('fetching');
     let handedOff = false;
     try {
-      const pois = await fetchPOIs({ ...position, heading: course ?? heading, interests: prefs.interests, radius: discoveryRadiusM(speedKmh) });
+      const { places, area: a } = await fetchPOIs({ ...position, speedKmh, course, heading, interests: prefs.interests, params: searchParams });
       if (token !== playToken.current) return;
-      const candidates = pois.filter(p => !visitedIds.current.has(p.id)).sort((a, b) => a.distance - b.distance);
+      setArea(a);
+      const candidates = places.filter(p => !visitedIds.current.has(p.id)).sort((a, b) => a.distance - b.distance);
       setQueue(candidates);
       const next = candidates[0];
       if (!next) return;
@@ -233,5 +249,5 @@ export function useStoryQueue({ position, heading, mode, speedKmh = 0, course, p
     }
   }, [position, heading, course, speedKmh, prefs, queue, generateAndPlay]);
 
-  return { queue, current, status, skip, togglePause, thumbsUp, thumbsDown, playNow };
+  return { queue, current, status, area, skip, togglePause, thumbsUp, thumbsDown, playNow };
 }

@@ -118,6 +118,35 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   margin: 8px 2px 0; line-height: 1.4;
 }
 
+/* ── Admin / testing panel ───────────────────── */
+.admin-panel {
+  position: fixed;
+  top: 56px; right: 8px; z-index: 9998;
+  width: 250px; max-height: 78vh; overflow-y: auto;
+  background: rgba(15,23,42,0.95);
+  border: 1px solid #a855f7; border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px; color: var(--text);
+  backdrop-filter: blur(8px);
+}
+.admin-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.admin-x { background:none; border:none; color: var(--text-dim); font-size:15px; }
+.admin-readout {
+  display:flex; flex-wrap:wrap; gap:4px 10px;
+  font-size:11px; color: var(--accent);
+  margin-bottom:8px; padding-bottom:8px;
+  border-bottom:1px solid rgba(255,255,255,0.1);
+}
+.admin-row { display:flex; align-items:center; gap:6px; margin:7px 0; }
+.admin-lbl { flex:0 0 88px; color: var(--text-dim); font-size:11px; }
+.admin-row input[type=range] { flex:1; accent-color:#a855f7; }
+.admin-val { flex:0 0 48px; text-align:right; font-variant-numeric:tabular-nums; }
+.admin-reset {
+  width:100%; margin-top:8px; padding:6px;
+  background: rgba(168,85,247,0.2); color:#d8b4fe;
+  border:1px solid #a855f7; border-radius:8px;
+}
+
 .build-badge {
   position: fixed;
   top: 60px; left: 8px;
