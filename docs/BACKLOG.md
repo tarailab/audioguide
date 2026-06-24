@@ -51,6 +51,25 @@ Best split into three dependent steps:
   offline, reviewable corpus. Cost depends entirely on the model chosen in B2.
   *Open scope: how many POIs, which length/tone/language matrix — clarify.*
 
+## 🏷️ Valuing system (defined 2026-06-24)
+
+Two axes, deliberately separated (they correlate but differ):
+- **Interest** = is it worth a story? (intrinsic) — currently a coarse type rule.
+- **Data** = can we tell a good one now? (Wikipedia/Wikidata/OSM tags).
+
+Shipped: **rough 2×2 tiers** for a typical tourist —
+A interesting+documented · B interesting+thin (value-add zone) · C ordinary+
+documented · D ordinary+thin. Shown as a coloured A–D badge (admin). The blended
+numeric score is kept only for the discovery `minScore` filter/sorting.
+
+**Backlog (interest ranking — deferred, it "explodes"):**
+- **Objective interest** via **Wikidata sitelink count** (language editions = crowd
+  notability) and/or **Wikipedia pageviews**. Fixes "spectacular viewpoint vs meh
+  lighthouse" and de-inflates tier B (e.g. 41 minor artworks). Needs batched
+  Wikidata lookups at discovery (the complexity we deferred).
+- **Persona-weighted interest** — a 12-yo vs 50-yo rank places very differently;
+  weight interest by user age/profile. Larger feature.
+
 ## 📌 Parked
 
 ### Public / closed-testing hosting

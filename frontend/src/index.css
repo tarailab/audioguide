@@ -296,6 +296,14 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   background: rgba(74,158,255,0.15);
   border-radius: 6px; padding: 1px 5px;
 }
+.queue-tier {
+  font-size: 10px; font-weight: 800;
+  border-radius: 5px; padding: 1px 6px; color: #fff;
+}
+.tier-A { background: #16a34a; }   /* high data + high interest */
+.tier-B { background: #2563eb; }
+.tier-C { background: #d97706; }
+.tier-D { background: #6b7280; }   /* low both */
 .queue-dist { font-size: 11px; color: var(--accent); margin-top: 2px; }
 
 /* ── Spinner ──────────────────────────────────── */

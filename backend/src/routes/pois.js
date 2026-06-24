@@ -84,6 +84,32 @@ function notability(poi) {
   return tagScore(poi.tags) + (poi.wiki ? 6 : 0);
 }
 
+// Rough value tier on two axes (the 2×2), so all tiers populate instead of a
+// blended score collapsing into a bimodal has-wiki/no-wiki split:
+//   A interesting + documented   B interesting + thin (value-add zone)
+//   C ordinary  + documented     D ordinary + thin
+// Objective/persona-aware interest (sitelinks, pageviews, age) is backlog.
+function interestHigh(t = {}) {
+  if (t.historic || t.heritage || t.geological) return true;
+  if (['lighthouse', 'windmill', 'watermill', 'tower', 'obelisk'].includes(t.man_made)) return true;
+  if (t.tourism && t.tourism !== 'information') return true;
+  if (['waterfall', 'peak', 'cave_entrance', 'volcano', 'geyser', 'cliff', 'arch', 'hot_spring'].includes(t.natural)) return true;
+  if (t.place === 'city' || t.place === 'town') return true;
+  return false; // village / hamlet / suburb / generic
+}
+function dataHigh(poi) {
+  const t = poi.tags || {};
+  return !!poi.wiki || !!t.wikipedia || !!t.wikidata;
+}
+function valueTier(poi) {
+  const i = interestHigh(poi.tags);
+  const d = dataHigh(poi);
+  if (i && d) return 'A';
+  if (i && !d) return 'B';
+  if (!i && d) return 'C';
+  return 'D';
+}
+
 // Enrich raw OSM POIs with Wikipedia + a notability score. Location-independent,
 // cached per area so it can be reused as the user moves through it.
 async function enrichArea(lat, lon, radius) {
@@ -147,6 +173,7 @@ router.post('/', async (req, res) => {
       wiki: poi.wiki,
       image: posterImage(t),
       relevanceScore: poi.relevanceScore,
+      tier: valueTier(poi),
       distance,
       bearing: bearingToWords(brg, headingForWords),
       inArea: av <= 1,

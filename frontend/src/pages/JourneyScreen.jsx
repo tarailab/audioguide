@@ -192,7 +192,9 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
                           onClick={() => { primeTTS(); playNow(p); }}>
                     <span className="queue-name">
                       {p.name}
-                      {adminOn && p.relevanceScore != null && <span className="queue-score">{p.relevanceScore}</span>}
+                      {adminOn && p.tier && (
+                        <span className={`queue-tier tier-${p.tier}`} title={`score ${p.relevanceScore}`}>{p.tier}</span>
+                      )}
                     </span>
                     <span className="queue-dist">{fmtDist(p.distance)}</span>
                   </button>
