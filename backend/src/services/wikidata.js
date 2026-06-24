@@ -2,6 +2,9 @@
 // `wikidata=Q…` tag) to ground the story and cut hallucination. Literal-valued
 // properties only (dates/quantities) so no extra label-resolution round-trips.
 
+// Wikimedia requires a descriptive User-Agent or it 403s the API.
+const UA = 'AudioguideApp/1.0 (travel storyteller POC; contact: local)';
+
 const TIME_PROPS = {
   P571: 'founded',
   P1619: 'opened',
@@ -20,6 +23,7 @@ async function fetchWikidataFacts(qid) {
   if (!qid || !/^Q\d+$/.test(qid)) return [];
   try {
     const res = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`, {
+      headers: { 'User-Agent': UA },
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return [];
@@ -44,4 +48,45 @@ async function fetchWikidataFacts(qid) {
   }
 }
 
-module.exports = { fetchWikidataFacts };
+// Sitelink count = how many language Wikipedias cover an entity — an objective,
+// persona-neutral interest signal. Batched (≤50 QIDs/call) and cached long
+// (changes slowly; a periodic re-sync is a backlog item).
+const cache = require('./cache');
+const SITELINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function sitelinkCountOne(qid) {
+  try {
+    // Special:EntityData is CDN-cached (the action API rate-limits hard).
+    const res = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const sl = data.entities?.[qid]?.sitelinks || {};
+    return Object.keys(sl).filter(k => k.endsWith('wiki')).length;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSitelinkCounts(qids) {
+  const out = {};
+  const todo = [];
+  for (const q of qids) {
+    const hit = cache.get(`sl:${q}`);
+    if (hit != null) out[q] = hit; else todo.push(q);
+  }
+  // Small concurrency to stay polite to the CDN.
+  for (let i = 0; i < todo.length; i += 4) {
+    const batch = todo.slice(i, i + 4);
+    await Promise.all(batch.map(async (q) => {
+      const n = await sitelinkCountOne(q);
+      if (n != null) { cache.set(`sl:${q}`, n, SITELINK_TTL_MS); out[q] = n; }
+      else out[q] = 0;
+    }));
+  }
+  return out;
+}
+
+module.exports = { fetchWikidataFacts, fetchSitelinkCounts };

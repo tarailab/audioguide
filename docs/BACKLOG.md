@@ -62,11 +62,14 @@ A interesting+documented · B interesting+thin (value-add zone) · C ordinary+
 documented · D ordinary+thin. Shown as a coloured A–D badge (admin). The blended
 numeric score is kept only for the discovery `minScore` filter/sorting.
 
+**Done:** objective interest via **Wikidata sitelink count** folded into the
+score + tier + value-aware sort (batched, 30-day cache).
+
 **Backlog (interest ranking — deferred, it "explodes"):**
-- **Objective interest** via **Wikidata sitelink count** (language editions = crowd
-  notability) and/or **Wikipedia pageviews**. Fixes "spectacular viewpoint vs meh
-  lighthouse" and de-inflates tier B (e.g. 41 minor artworks). Needs batched
-  Wikidata lookups at discovery (the complexity we deferred).
+- **Periodic sitelink re-sync** — counts are cached 30 days; add a scheduled
+  refresh (and the same for pre-generated stories) so the data doesn't drift.
+- **Wikipedia pageviews** — even more direct interest signal than sitelinks
+  (actual visits); per-title API, heavier. Optional refinement.
 - **Persona-weighted interest** — a 12-yo vs 50-yo rank places very differently;
   weight interest by user age/profile. Larger feature.
 

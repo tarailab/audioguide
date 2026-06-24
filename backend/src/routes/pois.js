@@ -2,7 +2,11 @@ const router = require('express').Router();
 const { queryPOIs } = require('../services/overpass');
 const { fetchWikipedia } = require('../services/wikipedia');
 const { calcDistance, calcBearing, bearingToWords } = require('../utils/geo');
+const { fetchSitelinkCounts } = require('../services/wikidata');
 const cache = require('../services/cache');
+
+// Objective interest from Wikidata sitelinks: capped bonus to the score.
+const sitelinkBonus = (n) => Math.min(6, Math.floor((n || 0) / 3));
 
 const POI_TTL_MS = 15 * 60 * 1000; // 15 min — OSM data barely changes
 
@@ -102,7 +106,8 @@ function dataHigh(poi) {
   return !!poi.wiki || !!t.wikipedia || !!t.wikidata;
 }
 function valueTier(poi) {
-  const i = interestHigh(poi.tags);
+  // Sitelinks promote interest objectively (a well-covered artwork IS notable).
+  const i = interestHigh(poi.tags) || (poi.sitelinks || 0) >= 5;
   const d = dataHigh(poi);
   if (i && d) return 'A';
   if (i && !d) return 'B';
@@ -124,8 +129,15 @@ async function enrichArea(lat, lon, radius) {
     return { ...poi, wiki };
   }, 4);
 
+  // Objective interest: how many language Wikipedias cover each (cached).
+  const qids = [...new Set(withContext.map(p => p.tags?.wikidata).filter(q => /^Q\d+$/.test(q || '')))];
+  const sl = qids.length ? await fetchSitelinkCounts(qids) : {};
+
   return withContext
-    .map(p => ({ ...p, relevanceScore: notability(p) }))
+    .map(p => {
+      const sitelinks = sl[p.tags?.wikidata] || 0;
+      return { ...p, sitelinks, relevanceScore: notability(p) + sitelinkBonus(sitelinks) };
+    })
     .filter(p => p.relevanceScore >= 2)
     .sort((a, b) => b.relevanceScore - a.relevanceScore)
     .slice(0, 16);
@@ -173,6 +185,7 @@ router.post('/', async (req, res) => {
       wiki: poi.wiki,
       image: posterImage(t),
       relevanceScore: poi.relevanceScore,
+      sitelinks: poi.sitelinks ?? 0,
       tier: valueTier(poi),
       distance,
       bearing: bearingToWords(brg, headingForWords),
@@ -196,7 +209,10 @@ router.post('/', async (req, res) => {
       places = [...places, ...wider];
     }
 
-    places.sort((a, b) => a.distance - b.distance);
+    // Value-aware sort: notable places float up, with a gentle distance penalty
+    // (~1 point per 3 km) so a far landmark still beats a near nobody.
+    const rank = (p) => p.relevanceScore - p.distance / 3000;
+    places.sort((a, b) => rank(b) - rank(a));
     places = places.slice(0, 15);
 
     console.log(`[POIs] ${places.length} places · v=${speedKmh} fwd=${Math.round(R.fwd / 1000)}km`);
