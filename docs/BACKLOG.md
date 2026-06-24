@@ -4,19 +4,19 @@ Captured from the 2026-06-23 helicopter-view UX/architecture review.
 Ordered roughly by experience-per-effort. Not all of these are committed work —
 this is the running list of known improvements.
 
-## ⏭️ Next iteration (decided 2026-06-24 — OSM opportunities)
+## ✅ Next-iteration content wins (DONE 2026-06-24, v2026-06-24.8)
 
-1. **Wikidata fact-grounding** — from a POI's `wikidata=Q…`, fetch structured
-   facts (founded, architect, height, notable people) and feed those to Claude
-   instead of free prose → fewer hallucinations, better stories.
-2. **Expanded POI categories** — add `man_made=lighthouse/windmill/watermill/
-   tower/obelisk`, `tourism=viewpoint/artwork`, UNESCO/`heritage=*`, broader
-   `historic`/`natural`. Extend the Overpass query + notability scoring.
-3. **Multilingual names + etymology** — use `name:en`/`name:lt` per language
-   (fixes naming/pronunciation), and `name:etymology[:wikidata]` as a story hook.
-4. **Image thumbnail** — `wikimedia_commons`/`image`: small thumbnail *inside*
-   the story text, hidden by default, **expands on click** (not a big image —
-   app is audio-first).
+1. **Wikidata fact-grounding** — ✅ `services/wikidata.js` pulls literal facts
+   (founded/opened/closed dates, population, height, elevation, length, area)
+   from the `wikidata=Q…` tag and feeds them to Claude. Verified: Eiffel test
+   used "1889 / 324 m" correctly. Cuts hallucination.
+2. **Expanded POI categories** — ✅ Overpass query + tagScore now include
+   `man_made` (lighthouse/windmill/watermill/tower/obelisk), `heritage`
+   (UNESCO ×6), broader `tourism`/`natural`, `geological`.
+3. **Multilingual names + etymology** — ✅ story uses `name:lt`/`name:en` by
+   language; `name:etymology` passed as a verified hook (prompt updated).
+4. **Image thumbnail** — ✅ backend returns a Commons/`image` URL; frontend
+   shows a 54px thumbnail in the story body that taps to expand.
 
 ## 📋 Backlog (decided 2026-06-24)
 

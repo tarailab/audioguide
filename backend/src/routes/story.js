@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { condenseSummary } = require('../services/ollama');
 const { generateStory } = require('../services/claude');
+const { fetchWikidataFacts } = require('../services/wikidata');
 const cache = require('../services/cache');
 const storyLog = require('../services/storyLog');
 
@@ -42,8 +43,9 @@ router.post('/', async (req, res) => {
         console.log(`[Story] Condensing ${context.length} chars via Ollama`);
         context = await condenseSummary(context, interests);
       }
-      console.log(`[Story] Generating story for "${poi.name}" (${length}, ${language})`);
-      const text = await generateStory({ poi, context, interests, tone, length, language, bearing });
+      const wdFacts = poi.tags?.wikidata ? await fetchWikidataFacts(poi.tags.wikidata) : [];
+      console.log(`[Story] Generating story for "${poi.name}" (${length}, ${language})${wdFacts.length ? ` +${wdFacts.length} wikidata facts` : ''}`);
+      const text = await generateStory({ poi, context, interests, tone, length, language, bearing, wdFacts });
 
       // Persist every newly generated story for later review.
       storyLog.append({

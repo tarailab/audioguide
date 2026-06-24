@@ -72,8 +72,11 @@ async function queryPOIs(lat, lon, radius) {
 )->.places;
 (
   node["historic"](around:${radius},${lat},${lon});
-  node["tourism"~"museum|attraction|viewpoint|artwork|castle|ruins"](around:${radius},${lat},${lon});
-  node["natural"~"peak|waterfall|cave_entrance|hot_spring|volcano|spring"](around:${radius},${lat},${lon});
+  node["heritage"](around:${radius},${lat},${lon});
+  node["tourism"~"museum|attraction|viewpoint|artwork|gallery|theme_park|zoo"](around:${radius},${lat},${lon});
+  node["natural"~"peak|waterfall|cave_entrance|hot_spring|volcano|spring|cliff|bay|cape|glacier|geyser|rock|arch|sinkhole"](around:${radius},${lat},${lon});
+  node["man_made"~"lighthouse|windmill|watermill|tower|obelisk"](around:${radius},${lat},${lon});
+  node["geological"](around:${radius},${lat},${lon});
 )->.poi;
 .places out 15;
 .poi out 40;

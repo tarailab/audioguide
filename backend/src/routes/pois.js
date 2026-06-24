@@ -54,8 +54,12 @@ async function batchAll(items, fn, batchSize = 4) {
 function tagScore(tags = {}) {
   let s = 1;
   if (tags.wikidata || tags.wikipedia) s += 2;
+  if (tags.heritage) s += String(tags['heritage:operator'] || '').includes('whc') ? 6 : 3;
   if (tags.historic) s += 3;
   if (tags.tourism && tags.tourism !== 'information') s += 2;
+  if (tags.man_made === 'lighthouse') s += 3;
+  if (['windmill', 'watermill', 'tower', 'obelisk'].includes(tags.man_made)) s += 2;
+  if (tags.geological) s += 2;
   if (tags.place === 'city') s += 5;
   if (tags.place === 'town') s += 3;
   if (tags.place === 'village' || tags.place === 'hamlet') s += 1;
@@ -63,6 +67,17 @@ function tagScore(tags = {}) {
   if (tags.natural) s += 1;
   if (tags.memorial || tags.monument) s += 2;
   return s;
+}
+
+// Best available thumbnail: a direct image URL, else a Commons file rendered at
+// a sane width via Special:FilePath.
+function posterImage(tags = {}) {
+  if (tags.image && /^https?:\/\//.test(tags.image)) return tags.image;
+  const c = tags.wikimedia_commons;
+  if (c && c.startsWith('File:')) {
+    return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(c.slice(5))}?width=480`;
+  }
+  return null;
 }
 
 function notability(poi) {
@@ -119,13 +134,18 @@ router.post('/', async (req, res) => {
     const distance = Math.round(calcDistance(lat, lon, poi.lat, poi.lon));
     const brg = calcBearing(lat, lon, poi.lat, poi.lon);
     const av = areaValue(distance, brg, course, R);
+    const t = poi.tags || {};
     return {
       id: poi.id,
       name: poi.name,
+      nameEn: t['name:en'] || null,
+      nameLt: t['name:lt'] || null,
+      etymology: t['name:etymology'] || null,
       lat: poi.lat,
       lon: poi.lon,
       tags: poi.tags,
       wiki: poi.wiki,
+      image: posterImage(t),
       relevanceScore: poi.relevanceScore,
       distance,
       bearing: bearingToWords(brg, headingForWords),

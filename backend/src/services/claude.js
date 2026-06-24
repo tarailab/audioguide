@@ -37,19 +37,24 @@ function deriveTone(tags, hasRichContext, userTone) {
   return toneMap[userTone] || toneMap.storyteller;
 }
 
-async function generateStory({ poi, context, interests, tone, length, language, bearing }) {
+async function generateStory({ poi, context, interests, tone, length, language, bearing, wdFacts = [] }) {
   const wordCount = LENGTH_WORDS[length] || 150;
   const langName = language === 'lt' ? 'Lithuanian' : 'English';
   const tags = poi.tags || {};
   const hasRichContext = context && context.length > 100 && !context.includes('— a notable place');
   const toneDesc = deriveTone(tags, hasRichContext, tone);
   const osmFacts = extractOsmFacts(tags);
+  const etymology = tags['name:etymology'];
 
-  const poiType = tags.historic || tags.tourism || tags.natural || tags.place || tags.building || 'place';
+  // Prefer the listener's-language name when the place has one.
+  const displayName = (language === 'lt' ? tags['name:lt'] : tags['name:en']) || poi.name;
+  const poiType = tags.historic || tags.tourism || tags.natural || tags.man_made || tags.place || tags.building || 'place';
 
   const contextBlock = [
     hasRichContext ? `Wikipedia/web: ${context}` : null,
+    wdFacts.length ? `Verified facts (Wikidata): ${wdFacts.join(', ')}` : null,
     osmFacts.length ? `OSM data: ${osmFacts.join(', ')}` : null,
+    etymology ? `Named after / etymology: ${etymology}` : null,
   ].filter(Boolean).join('\n') || 'No additional context found.';
 
   const system = `You are an audio guide for travellers. The listener is in a moving vehicle or walking nearby.
@@ -66,10 +71,11 @@ Rules:
 STRICT honesty rules:
 - Only state facts you actually have. Do NOT invent history, legends, events, or people.
 - If context is thin: give the hard facts you DO have (type, size, age, population if known), then stop.
-- Do NOT speculate on name etymology unless you are confident it is correct for this specific region and language.
+- Do NOT speculate on name etymology. BUT if an etymology is given in the context below, it is verified — you may use it as a hook.
+- If verified facts are provided, prefer them; weave concrete numbers/dates in naturally.
 - If there is genuinely nothing notable to say, say so plainly in 2-3 sentences: what it is, roughly when/why it exists, and move on. That is better than padding with vague atmosphere.`;
 
-  const user = `Place: ${poi.name}
+  const user = `Place: ${displayName}
 Type: ${poiType}
 ${contextBlock}
 Listener interests: ${interests.length ? interests.join(', ') : 'general'}`;

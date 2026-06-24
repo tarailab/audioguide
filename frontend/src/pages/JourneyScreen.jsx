@@ -42,6 +42,7 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
   });
 
   const [expanded, setExpanded] = useState(false);
+  const [imgOpen, setImgOpen] = useState(false);
 
   return (
     // Unlock mobile speech synthesis on the first touch anywhere (Android/iOS
@@ -137,9 +138,20 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
               </div>
             </div>
             {current.text && (
-              <p className="story-snippet" onClick={() => setExpanded(v => !v)}>
-                {expanded ? current.text : current.text.slice(0, 120) + '… ▼'}
-              </p>
+              <div className="story-body">
+                {current.poi?.image && (
+                  <img
+                    src={current.poi.image}
+                    alt={current.poi.name}
+                    className={`story-thumb ${imgOpen ? 'open' : ''}`}
+                    loading="lazy"
+                    onClick={() => setImgOpen(v => !v)}
+                  />
+                )}
+                <p className="story-snippet" onClick={() => setExpanded(v => !v)}>
+                  {expanded ? current.text : current.text.slice(0, 120) + '… ▼'}
+                </p>
+              </div>
             )}
           </div>
         ) : (
