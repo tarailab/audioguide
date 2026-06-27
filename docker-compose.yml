@@ -1,12 +1,15 @@
 services:
 
-  # Self-hosted Overpass (LT+LV extract) — kills public-server flakiness.
-  # First boot builds the DB from osm/baltics.osm.pbf (a few minutes); after
-  # that it serves at http://overpass/api/interpreter on this network.
+  # Self-hosted Overpass (LT+LV + Spain extract) — kills public-server flakiness.
+  # First boot builds the DB from osm/regions.osm.pbf (the merged Baltics+Spain
+  # extract — see osm/README for how it's built); takes ~15-40 min for Spain.
+  # After that it serves at http://overpass/api/interpreter on this network.
   # NOTE: after a FRESH DB build the image leaves /db as 700, which makes the
   # web process fail with "Permission denied … osm3s_osm_base". One-time fix:
   #   docker exec audioguide-overpass-1 chmod -R o+rX /db
   # (persists in the named volume; only needed again if the volume is wiped).
+  # To re-provision (e.g. add a region), rebuild osm/regions.osm.pbf, then:
+  #   docker compose down && docker volume rm audioguide_overpass_db && docker compose up -d
   overpass:
     image: wiktorn/overpass-api
     restart: unless-stopped
@@ -15,8 +18,8 @@ services:
     environment:
       OVERPASS_MODE: init
       OVERPASS_META: "no"
-      OVERPASS_PLANET_URL: "file:///osmdata/baltics.osm.pbf"
-      OVERPASS_PLANET_PREPROCESS: 'osmium cat -o /db/planet.osm.bz2 /osmdata/baltics.osm.pbf --overwrite'
+      OVERPASS_PLANET_URL: "file:///osmdata/regions.osm.pbf"
+      OVERPASS_PLANET_PREPROCESS: 'osmium cat -o /db/planet.osm.bz2 /osmdata/regions.osm.pbf --overwrite'
       OVERPASS_STOP_AFTER_INIT: "false"
       OVERPASS_RULES_LOAD: "10"
     volumes:

@@ -1,6 +1,6 @@
-// Self-hosted Overpass holds the LT+LV extract — fast, no rate limits. Use it
-// first inside the Baltics bbox; fall back to public mirrors elsewhere (and if
-// the local one is ever down).
+// Self-hosted Overpass holds the LT+LV + Spain extract — fast, no rate limits.
+// Use it first inside the covered regions; fall back to public mirrors elsewhere
+// (and if the local one is ever down).
 const LOCAL_OVERPASS = process.env.OVERPASS_LOCAL_URL || 'http://overpass/api/interpreter';
 const PUBLIC_URLS = [
   'https://overpass-api.de/api/interpreter',
@@ -8,9 +8,15 @@ const PUBLIC_URLS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
-// Area covered by the local extract (Lithuania + Latvia, padded).
+// Regions in the local extract (padded bboxes: [south, west, north, east]).
+// Keep in sync with the merged pbf in docker-compose (osm/regions.osm.pbf).
+const LOCAL_BBOXES = [
+  [53.8, 20.9, 58.2, 28.4],   // Lithuania + Latvia
+  [35.0, -9.6, 44.0, 4.5],    // Spain mainland + Balearics + Ceuta/Melilla
+  [27.4, -18.3, 29.5, -13.3], // Canary Islands
+];
 function inLocalCoverage(lat, lon) {
-  return lat >= 53.8 && lat <= 58.2 && lon >= 20.9 && lon <= 28.4;
+  return LOCAL_BBOXES.some(([s, w, n, e]) => lat >= s && lat <= n && lon >= w && lon <= e);
 }
 function urlsFor(lat, lon) {
   return inLocalCoverage(lat, lon) ? [LOCAL_OVERPASS, ...PUBLIC_URLS] : PUBLIC_URLS;
@@ -84,7 +90,40 @@ async function queryPOIs(lat, lon, radius) {
 
   const urls = urlsFor(lat, lon);
   const data = await schedule(() => fetchOverpass(query, urls));
+  return normalize(data);
+}
 
+// Browse query for the trip planner: every notable POI inside a map bbox
+// (south,west,north,east). Same tag families as queryPOIs, but bbox-bounded and
+// with higher output caps — the route then zoom-gates by tagScore so a wide
+// (zoomed-out) box returns only headline places. No Wikipedia/Wikidata here;
+// enrichment is deferred to enrichOne when a POI is actually clicked/added.
+async function queryBBox({ south, west, north, east }) {
+  const bbox = `${south},${west},${north},${east}`;
+  const query = `
+[out:json][timeout:25];
+(
+  node["place"~"city|town|village|hamlet|suburb"](${bbox});
+)->.places;
+(
+  node["historic"](${bbox});
+  node["heritage"](${bbox});
+  node["tourism"~"museum|attraction|viewpoint|artwork|gallery|theme_park|zoo"](${bbox});
+  node["natural"~"peak|waterfall|cave_entrance|hot_spring|volcano|spring|cliff|bay|cape|glacier|geyser|rock|arch|sinkhole"](${bbox});
+  node["man_made"~"lighthouse|windmill|watermill|tower|obelisk"](${bbox});
+  node["geological"](${bbox});
+)->.poi;
+.places out 80;
+.poi out 400;
+`.trim();
+
+  // Pick mirrors by the bbox centre (local extract covers LT+LV only).
+  const urls = urlsFor((south + north) / 2, (west + east) / 2);
+  const data = await schedule(() => fetchOverpass(query, urls));
+  return normalize(data);
+}
+
+function normalize(data) {
   return data.elements
     .filter(el => el.tags?.name)
     .map(el => ({
@@ -97,4 +136,4 @@ async function queryPOIs(lat, lon, radius) {
     .filter(el => el.lat && el.lon);
 }
 
-module.exports = { queryPOIs };
+module.exports = { queryPOIs, queryBBox };

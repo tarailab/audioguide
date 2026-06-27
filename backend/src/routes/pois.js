@@ -1,12 +1,12 @@
 const router = require('express').Router();
-const { queryPOIs } = require('../services/overpass');
+const { queryPOIs, queryBBox } = require('../services/overpass');
 const { fetchWikipedia } = require('../services/wikipedia');
 const { calcDistance, calcBearing, bearingToWords } = require('../utils/geo');
 const { fetchSitelinkCounts } = require('../services/wikidata');
 const cache = require('../services/cache');
-
-// Objective interest from Wikidata sitelinks: capped bonus to the score.
-const sitelinkBonus = (n) => Math.min(6, Math.floor((n || 0) / 3));
+const {
+  sitelinkBonus, tagScore, posterImage, notability, valueTier, enrichOne,
+} = require('../services/poiEnrich');
 
 const POI_TTL_MS = 15 * 60 * 1000; // 15 min — OSM data barely changes
 
@@ -53,66 +53,6 @@ async function batchAll(items, fn, batchSize = 4) {
     results.push(...batch);
   }
   return results;
-}
-
-function tagScore(tags = {}) {
-  let s = 1;
-  if (tags.wikidata || tags.wikipedia) s += 2;
-  if (tags.heritage) s += String(tags['heritage:operator'] || '').includes('whc') ? 6 : 3;
-  if (tags.historic) s += 3;
-  if (tags.tourism && tags.tourism !== 'information') s += 2;
-  if (tags.man_made === 'lighthouse') s += 3;
-  if (['windmill', 'watermill', 'tower', 'obelisk'].includes(tags.man_made)) s += 2;
-  if (tags.geological) s += 2;
-  if (tags.place === 'city') s += 5;
-  if (tags.place === 'town') s += 3;
-  if (tags.place === 'village' || tags.place === 'hamlet') s += 1;
-  if (tags.place === 'suburb') s += 1;
-  if (tags.natural) s += 1;
-  if (tags.memorial || tags.monument) s += 2;
-  return s;
-}
-
-// Best available thumbnail: a direct image URL, else a Commons file rendered at
-// a sane width via Special:FilePath.
-function posterImage(tags = {}) {
-  if (tags.image && /^https?:\/\//.test(tags.image)) return tags.image;
-  const c = tags.wikimedia_commons;
-  if (c && c.startsWith('File:')) {
-    return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(c.slice(5))}?width=480`;
-  }
-  return null;
-}
-
-function notability(poi) {
-  return tagScore(poi.tags) + (poi.wiki ? 6 : 0);
-}
-
-// Rough value tier on two axes (the 2×2), so all tiers populate instead of a
-// blended score collapsing into a bimodal has-wiki/no-wiki split:
-//   A interesting + documented   B interesting + thin (value-add zone)
-//   C ordinary  + documented     D ordinary + thin
-// Objective/persona-aware interest (sitelinks, pageviews, age) is backlog.
-function interestHigh(t = {}) {
-  if (t.historic || t.heritage || t.geological) return true;
-  if (['lighthouse', 'windmill', 'watermill', 'tower', 'obelisk'].includes(t.man_made)) return true;
-  if (t.tourism && t.tourism !== 'information') return true;
-  if (['waterfall', 'peak', 'cave_entrance', 'volcano', 'geyser', 'cliff', 'arch', 'hot_spring'].includes(t.natural)) return true;
-  if (t.place === 'city' || t.place === 'town') return true;
-  return false; // village / hamlet / suburb / generic
-}
-function dataHigh(poi) {
-  const t = poi.tags || {};
-  return !!poi.wiki || !!t.wikipedia || !!t.wikidata;
-}
-function valueTier(poi) {
-  // Sitelinks promote interest objectively (a well-covered artwork IS notable).
-  const i = interestHigh(poi.tags) || (poi.sitelinks || 0) >= 5;
-  const d = dataHigh(poi);
-  if (i && d) return 'A';
-  if (i && !d) return 'B';
-  if (!i && d) return 'C';
-  return 'D';
 }
 
 // Enrich raw OSM POIs with Wikipedia + a notability score. Location-independent,
@@ -223,6 +163,102 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('[POIs] Error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Trip planner ───────────────────────────────────────────────────────────
+
+const BROWSE_TTL_MS = 10 * 60 * 1000;
+
+// Spatially-even down-sample for the browse map. A flat top-N by score dumps
+// every POI of a dense city and nothing from the countryside; this buckets the
+// bbox into a grid and round-robins the highest-scoring POI from each cell, so
+// the cap buys an even spread instead of one hotspot. Score still wins within a
+// cell. Cheap (single pass + per-cell sort).
+function sampleEvenly(places, [s, w, n, e], limit, grid = 24) {
+  if (places.length <= limit) return places.slice().sort((a, b) => b.tagScore - a.tagScore);
+  const latSpan = (n - s) || 1, lonSpan = (e - w) || 1;
+  const cells = new Map();
+  for (const p of places) {
+    const r = Math.min(grid - 1, Math.max(0, Math.floor(((p.lat - s) / latSpan) * grid)));
+    const c = Math.min(grid - 1, Math.max(0, Math.floor(((p.lon - w) / lonSpan) * grid)));
+    const key = r * grid + c;
+    const arr = cells.get(key) || cells.set(key, []).get(key);
+    arr.push(p);
+  }
+  const buckets = [...cells.values()];
+  for (const arr of buckets) arr.sort((a, b) => b.tagScore - a.tagScore);
+  const out = [];
+  for (let round = 0; out.length < limit; round++) {
+    let progressed = false;
+    for (const arr of buckets) {
+      if (arr[round]) { out.push(arr[round]); progressed = true; if (out.length >= limit) break; }
+    }
+    if (!progressed) break;
+  }
+  return out;
+}
+
+// Browse a map bbox (south,west,north,east). Cheap: raw OSM + tag-only scoring,
+// NO Wikipedia/Wikidata. Zoom-gated — a wide box returns only the top `limit`
+// places by tagScore, so zoomed out you see headline POIs, zoomed in you see
+// everything. Full A–D tier / image / wiki comes later via /enrich.
+router.post('/browse', async (req, res) => {
+  const { bbox, limit = 200 } = req.body || {};
+  if (!Array.isArray(bbox) || bbox.length !== 4 || bbox.some((n) => !isFinite(n))) {
+    return res.status(400).json({ error: 'bbox [south,west,north,east] required' });
+  }
+  const [south, west, north, east] = bbox.map(Number);
+  if (south >= north || west >= east) return res.status(400).json({ error: 'invalid bbox' });
+
+  const key = `browse:${[south, west, north, east].map((n) => n.toFixed(2)).join(':')}:${limit}`;
+  try {
+    const result = await cache.remember(key, BROWSE_TTL_MS, async () => {
+      const raw = await queryBBox({ south, west, north, east });
+      const scored = raw.map((p) => ({
+        id: p.id,
+        name: p.name,
+        lat: p.lat,
+        lon: p.lon,
+        tags: p.tags,
+        tagScore: tagScore(p.tags),
+        tier: valueTier({ tags: p.tags }), // provisional (tags only)
+        hasWiki: !!(p.tags?.wikidata || p.tags?.wikipedia),
+      }));
+      const cap = Math.min(500, Math.max(1, limit));
+      const places = sampleEvenly(scored, [south, west, north, east], cap);
+      return { places, capped: scored.length > places.length };
+    });
+    console.log(`[Browse] ${result.places.length} POIs in bbox ${south.toFixed(2)},${west.toFixed(2)} → ${north.toFixed(2)},${east.toFixed(2)}${result.capped ? ' (sampled)' : ''}`);
+    res.json(result);
+  } catch (err) {
+    console.error('[Browse] Error:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Full enrichment for one POI (clicked or being added to a trip): real A–D tier,
+// image, wiki summary, sitelinks. Body: { poi: {id,name,lat,lon,tags} }.
+router.post('/enrich', async (req, res) => {
+  const { poi } = req.body || {};
+  if (!poi || !poi.id || !poi.tags) return res.status(400).json({ error: 'poi {id,name,tags} required' });
+  try {
+    const e = await enrichOne(poi);
+    res.json({
+      id: e.id,
+      name: e.name,
+      lat: e.lat,
+      lon: e.lon,
+      tags: e.tags,
+      wiki: e.wiki,
+      image: e.image,
+      tier: e.tier,
+      sitelinks: e.sitelinks,
+      relevanceScore: e.relevanceScore,
+    });
+  } catch (err) {
+    console.error('[Enrich] Error:', err.message);
+    res.status(502).json({ error: err.message });
   }
 });
 
