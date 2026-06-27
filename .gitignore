@@ -13,4 +13,18 @@ backend/data/
 # Downloaded Piper voice models
 tts/
 .github-project-id
-osm/
+# OSM extracts — large binaries, never commit (but keep the dir's README)
+osm/*
+!osm/README.md
+
+# Test artifacts (regenerated each run). Snapshot BASELINES under
+# tests/e2e/*-snapshots/ ARE committed — they're the visual source of truth.
+playwright-report/
+test-results/
+/.last-qa-review
+
+# Agentic review scratch (regenerated each run). The dated reports
+# qa/reports/*.md ARE committed; everything below is throwaway.
+qa/reports/_shots/
+qa/reports/_diff.txt
+qa/reports/_test-results.txt

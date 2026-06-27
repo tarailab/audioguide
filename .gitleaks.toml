@@ -1,0 +1,22 @@
+# gitleaks config — scans the repo and git history for leaked secrets
+# (API keys, tokens, private keys). Runs in CI and before push.
+#
+# This is the guard that would have caught a committed Anthropic/OpenAI key.
+# Real secrets belong in .env files (git-ignored) and CI secrets — never in code.
+
+title = "audioguide secret scan"
+
+[extend]
+useDefault = true   # inherit gitleaks' built-in rules for common providers
+
+[allowlist]
+description = "Test fixtures and examples that contain fake, non-sensitive values"
+paths = [
+  '''tests/e2e/.*''',
+  '''.*\.example$''',
+  '''.*\.md$''',
+]
+# Obvious placeholders that are not real secrets.
+regexes = [
+  '''(?i)(your[_-]?api[_-]?key|example|placeholder|changeme|xxxx+)''',
+]
