@@ -16,7 +16,7 @@ function fmtDist(m) {
 
 const DROP_MS = 90000; // must match useStoryQueue — for fade opacity
 
-export default function JourneyScreen({ prefs, onOpenPrefs }) {
+export default function JourneyScreen({ prefs, onOpenPrefs, onOpenPlanner }) {
   const { position, speedKmh, mode, course, error: gpsError } = useGPS();
   const { heading, permissionNeeded, requestPermission } = useCompass();
 
@@ -90,6 +90,7 @@ export default function JourneyScreen({ prefs, onOpenPrefs }) {
             <button className="icon-btn" onClick={() => setAdminPanel(v => !v)}
                     aria-label="Admin tuning" title="Admin tuning">🛠</button>
           )}
+          <button className="icon-btn nav-planner" onClick={onOpenPlanner} aria-label="Trip planner" title="Open the trip planner">🗺</button>
           <button className="icon-btn" onClick={onOpenPrefs} aria-label="Preferences">⚙</button>
         </div>
       </div>

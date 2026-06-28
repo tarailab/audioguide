@@ -13,10 +13,13 @@ test('gear button opens Preferences, back returns to journey', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Preferences' })).toBeVisible();
 });
 
-test('trip planner is reachable from the journey HUD', async ({ page }) => {
+test('trip planner is reachable AND actually renders', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Trip planner' }).click();
   await expect(page).toHaveURL(/screen=planner/);
+  // Assert real content renders — not just the URL. (A crash/blank screen, like
+  // the earlier mock-shape bug, would fail here instead of passing silently.)
+  await expect(page.getByRole('heading', { name: /Trip Planner/ })).toBeVisible();
 });
 
 test('deep link ?screen=prefs opens Preferences directly', async ({ page }) => {

@@ -37,11 +37,16 @@ this is the running list of known improvements.
 Run when not actively working on other things (consider a background agent).
 Best split into three dependent steps:
 
-- **B1. Self-hosted POI source — ✅ DONE (LT+LV, 2026-06-24).**
-  `wiktorn/overpass-api` container with merged LT+LV extract (342 MB pbf,
-  ~319k tagged nodes). Backend uses it first inside the Baltics bbox, public
-  mirrors as fallback elsewhere. No more 504s in-region. *Next regions:*
-  Spain → assess Europe disk/RAM (use filtered extract for those).
+- **B1. Self-hosted POI source — ✅ DONE (LT+LV 2026-06-24; +Spain 2026-06-27).**
+  `wiktorn/overpass-api` container builds from a merged extract
+  (`osm/regions.osm.pbf`). Backend (`overpass.js` `LOCAL_BBOXES`) uses it first
+  inside the covered regions, public mirrors as fallback elsewhere. No more 504s
+  in-region.
+  - LT+LV: 342 MB pbf, ~319k tagged nodes.
+  - Spain: 1.35 GB pbf (mainland + Balearics + Canaries + Ceuta/Melilla),
+    merged → ~1.7 GB. Added for the trip planner. See `osm/README.md` for the
+    rebuild/add-a-region procedure. *Next regions:* assess Europe disk/RAM
+    before going wider.
 - **B2. Model comparison for story generation** (do BEFORE bulk gen).
   Compare local (Ollama) vs Claude vs GPT on quality / cost / latency over a
   representative POI sample. Likely conclusion: **local model for free bulk

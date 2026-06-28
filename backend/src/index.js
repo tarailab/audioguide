@@ -8,6 +8,7 @@ app.use(express.json());
 
 app.use('/health', require('./routes/health'));
 app.use('/api/pois', require('./routes/pois'));
+app.use('/api/trips', require('./routes/trips'));
 app.use('/api/story', require('./routes/story'));
 app.use('/api/tts', require('./routes/tts'));
 
