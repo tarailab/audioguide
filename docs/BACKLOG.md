@@ -74,6 +74,22 @@ problem (killed true facts: Lugo founding, Besalú mikveh), and it's heavy
 verification** (source-trust tiers + "needs review", not hard-kill) and an
 **owner curation step** — NOT an autonomous full-coverage crawler.
 
+**Gather + extraction layers built (2026-06-28):**
+- `services/research.js` — local-language-first Wikipedia + reference-link
+  harvest + county fallback, throttled/cached (PR #56). Fixes the spike's recall
+  gap (Besalú: 0 → ca/en/es/gl, ~16k chars, 51 refs incl. besalu.cat).
+- `services/dossier.js` — Opus 4.8 extraction → trust-scored JSON (summary,
+  facts, angles by theme, cross-place connections, `needsReview` bucket).
+  Demand-gated, cached per QID (pay once/place); LLM call isolated in `callLLM()`.
+  **Proof:** Besalú dossier now surfaces the mikvah the spike killed, high
+  confidence — 14 facts / 7 angles / 5 connections, ~$0.11/place.
+- `services/usage.js` — Claude cost meter (`data/research-usage.json`), one-time
+  alert when spend > `RESEARCH_BUDGET_ALERT_USD` (default $5).
+- **Cost:** Opus to start; **GLM-5.2 marked as the cheaper future swap** (one
+  function — `callLLM` / `DOSSIER_MODEL`).
+- *Still to wire:* planner "research" mark → buildDossier; owner usage endpoint;
+  dossier display in the planner UI; reference-content fetching (phase 2).
+
 ## 🛠️ Idle / background tasks (decided 2026-06-24, important)
 
 Run when not actively working on other things (consider a background agent).
