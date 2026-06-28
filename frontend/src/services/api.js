@@ -26,11 +26,14 @@ async function asJson(res) {
 }
 
 // Browse a map bbox [south, west, north, east] → lightweight (un-enriched) POIs.
+// Hard timeout so a slow Overpass query surfaces as an error instead of an
+// indefinite "Loading…".
 export async function browsePOIs(bbox, limit = 200) {
   const res = await fetch(`${BASE}/api/pois/browse`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bbox, limit }),
+    signal: AbortSignal.timeout(20000),
   });
   return asJson(res); // { places, capped }
 }

@@ -45,7 +45,7 @@ function schedule(task) {
   return run;
 }
 
-async function fetchOverpass(query, urls, urlIndex = 0) {
+async function fetchOverpass(query, urls, urlIndex = 0, localTimeoutMs = 8000) {
   const url = urls[urlIndex];
   const isLocal = url === LOCAL_OVERPASS;
   console.log(`[Overpass] Trying ${isLocal ? 'LOCAL' : url}`);
@@ -54,15 +54,16 @@ async function fetchOverpass(query, urls, urlIndex = 0) {
       method: 'POST',
       headers: { 'User-Agent': 'AudioguideApp/1.0 (travel storyteller POC)' },
       body: `data=${encodeURIComponent(query)}`,
-      // Local has no rate limit and is fast; give it a short patience.
-      signal: AbortSignal.timeout(isLocal ? 8000 : PER_MIRROR_TIMEOUT_MS),
+      // Local has no rate limit; caller sets its patience (browse bbox queries
+      // need longer than the driving app's small around-queries).
+      signal: AbortSignal.timeout(isLocal ? localTimeoutMs : PER_MIRROR_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
     return res.json();
   } catch (err) {
     if (urlIndex < urls.length - 1) {
       console.log(`[Overpass] ${isLocal ? 'LOCAL' : url} failed (${err.message}), trying next`);
-      return fetchOverpass(query, urls, urlIndex + 1);
+      return fetchOverpass(query, urls, urlIndex + 1, localTimeoutMs);
     }
     throw new Error(`All Overpass mirrors failed: ${err.message}`);
   }
@@ -93,33 +94,63 @@ async function queryPOIs(lat, lon, radius) {
   return normalize(data);
 }
 
-// Browse query for the trip planner: every notable POI inside a map bbox
-// (south,west,north,east). Same tag families as queryPOIs, but bbox-bounded and
-// with higher output caps — the route then zoom-gates by tagScore so a wide
-// (zoomed-out) box returns only headline places. No Wikipedia/Wikidata here;
-// enrichment is deferred to enrichOne when a POI is actually clicked/added.
+// Browse query for the trip planner: notable POIs inside a map bbox
+// (south,west,north,east). CRITICAL: the breadth scales to the view area. A
+// country-sized box that asks for every historic/tourism/natural node is a
+// pathological Overpass scan — it times out and, because all our Overpass
+// traffic is serialized, jams the queue for the whole app. So a wide view
+// fetches only headline settlements (cheap, tag-indexed), and the full POI set
+// is reserved for a tight, zoomed-in box. No Wikipedia/Wikidata here; enrichment
+// is deferred to enrichOne when a POI is actually clicked/added.
 async function queryBBox({ south, west, north, east }) {
   const bbox = `${south},${west},${north},${east}`;
-  const query = `
-[out:json][timeout:25];
-(
-  node["place"~"city|town|village|hamlet|suburb"](${bbox});
-)->.places;
-(
+  const areaDeg2 = Math.abs((north - south) * (east - west));
+
+  let placesFilter, poiBlock, placesOut, poiOut;
+  if (areaDeg2 > 12) {
+    // Country scale → cities + towns only.
+    placesFilter = 'city|town';
+    poiBlock = '';
+    placesOut = 200; poiOut = 0;
+  } else if (areaDeg2 > 0.6) {
+    // Region / province → settlements + the most notable POI types only.
+    placesFilter = 'city|town|village';
+    poiBlock = `
+  node["heritage"](${bbox});
+  node["historic"~"castle|fort|monument|memorial|archaeological_site|ruins|monastery|city_gate|tower"](${bbox});
+  node["tourism"~"museum|attraction|viewpoint|theme_park|zoo"](${bbox});
+  node["natural"~"peak|volcano|waterfall|cave_entrance|glacier"](${bbox});
+  node["man_made"~"lighthouse"](${bbox});`;
+    placesOut = 120; poiOut = 400;
+  } else {
+    // Local view → the full detailed set.
+    placesFilter = 'city|town|village|hamlet|suburb';
+    poiBlock = `
   node["historic"](${bbox});
   node["heritage"](${bbox});
   node["tourism"~"museum|attraction|viewpoint|artwork|gallery|theme_park|zoo"](${bbox});
   node["natural"~"peak|waterfall|cave_entrance|hot_spring|volcano|spring|cliff|bay|cape|glacier|geyser|rock|arch|sinkhole"](${bbox});
   node["man_made"~"lighthouse|windmill|watermill|tower|obelisk"](${bbox});
-  node["geological"](${bbox});
-)->.poi;
-.places out 80;
-.poi out 400;
+  node["geological"](${bbox});`;
+    placesOut = 80; poiOut = 400;
+  }
+
+  const query = `
+[out:json][timeout:25];
+(
+  node["place"~"${placesFilter}"](${bbox});
+)->.places;
+.places out ${placesOut};
+${poiBlock ? `(${poiBlock}\n)->.poi;\n.poi out ${poiOut};` : ''}
 `.trim();
 
-  // Pick mirrors by the bbox centre (local extract covers LT+LV only).
-  const urls = urlsFor((south + north) / 2, (west + east) / 2);
-  const data = await schedule(() => fetchOverpass(query, urls));
+  // If the view is inside the local extract, serve it from the local server
+  // ONLY — with a generous timeout. A bbox query that's slow locally would only
+  // be slower on the public mirrors, and failing over to them (3 × 12s) just
+  // jams the shared queue for the whole app. Outside coverage, use the mirrors.
+  const covered = inLocalCoverage((south + north) / 2, (west + east) / 2);
+  const urls = covered ? [LOCAL_OVERPASS] : PUBLIC_URLS;
+  const data = await schedule(() => fetchOverpass(query, urls, 0, 25000));
   return normalize(data);
 }
 
