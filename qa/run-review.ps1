@@ -28,6 +28,22 @@ Set-Location $repo
 $project = Split-Path $repo -Leaf
 if ($Deep) { $Model = 'claude-opus-4-8' }
 
+# Single-runner lock: prevents a scheduled run and a manual run (or two manual
+# runs) from overlapping and fighting over the test port / report files. A stale
+# lock older than 2h is assumed dead and reclaimed.
+$lockFile = Join-Path $repo 'qa/reports/.review.lock'
+New-Item -ItemType Directory -Force -Path (Split-Path $lockFile) | Out-Null
+if (Test-Path $lockFile) {
+  $age = (Get-Date) - (Get-Item $lockFile).LastWriteTime
+  if ($age.TotalHours -lt 2) {
+    Write-Warning "A review for '$project' is already running (lock held $([int]$age.TotalMinutes)m). Exiting."
+    return
+  }
+  Write-Host "Reclaiming stale review lock ($([int]$age.TotalHours)h old)."
+}
+"$PID $(Get-Date -Format o)" | Out-File -Encoding ascii $lockFile
+try {
+
 $today      = Get-Date -Format 'yyyy-MM-dd'
 $shotsDir   = 'qa/reports/_shots'
 $markerFile = '.last-qa-review'
@@ -117,3 +133,7 @@ if ($out -match 'Not logged in|Please run /login|Invalid API key|credit balance'
 Publish-ToDashboard $reportRel
 $head | Out-File -Encoding ascii $markerFile
 Write-Host "Done. Report: $reportRel"
+}
+finally {
+  Remove-Item -Force $lockFile -ErrorAction SilentlyContinue
+}

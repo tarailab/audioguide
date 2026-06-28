@@ -95,6 +95,20 @@ A fresh report lands in `qa/reports/` every morning. Remove it any time with
 
 ---
 
+## Running tests without clashing with development
+You can run tests while you're actively developing — they won't collide:
+- **Dedicated test port.** The dev server runs the app on **5173**; the test runner
+  spins up its own isolated server on **5273** (with `--strictPort`). A `npm run dev`
+  session and a test run coexist without fighting for a port.
+- **GPU-free.** Tests mock the story/TTS backends, so they hold no VRAM and never
+  contend with Ollama/ComfyUI or your dev backend.
+- **Git-safe.** Tests write only to git-ignored `qa/reports/` and `test-results/` —
+  never your source files.
+- **One review at a time.** `qa/run-review.ps1` takes a lock so a scheduled run and a
+  manual run can't overlap.
+
+(Lab-wide details: `D:\AI\TESTING_FRAMEWORK.md`.)
+
 ## One-time prerequisites
 - **Node deps:** `npm install && npm run install:all` then `npx playwright install chromium`.
 - **gitleaks** (secret scanning) — optional locally, runs in CI regardless. Install:

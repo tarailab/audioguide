@@ -28,3 +28,4 @@ test-results/
 qa/reports/_shots/
 qa/reports/_diff.txt
 qa/reports/_test-results.txt
+qa/reports/.review.lock
