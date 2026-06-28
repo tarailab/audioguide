@@ -43,6 +43,20 @@ function notability(poi) {
   return tagScore(poi.tags) + (poi.wiki ? 6 : 0);
 }
 
+// Coarse category from OSM tags — the trip planner's primary grouping/filter
+// axis. Order matters (first match wins): a museum inside a castle reads as a
+// castle; a peak with a viewpoint reads as nature. Keep keys in sync with the
+// frontend categories.js.
+function categoryOf(t = {}) {
+  if (/^(city|town|village|hamlet|suburb)$/.test(t.place || '')) return 'settlement';
+  if (/^(castle|fort|city_gate|fortification)$/.test(t.historic || '') || t.defensive) return 'castle';
+  if (/^(museum|gallery|artwork|attraction|theme_park|zoo)$/.test(t.tourism || '')) return 'culture';
+  if (t.natural || t.geological) return 'nature';
+  if (/^(lighthouse|windmill|watermill|tower|obelisk)$/.test(t.man_made || '') || t.tourism === 'viewpoint') return 'landmark';
+  if (t.historic || t.heritage) return 'heritage';
+  return 'other';
+}
+
 // Rough value tier on two axes (the 2×2), so all tiers populate instead of a
 // blended score collapsing into a bimodal has-wiki/no-wiki split:
 //   A interesting + documented   B interesting + thin (value-add zone)
@@ -90,11 +104,12 @@ async function enrichOne(poi) {
       image: posterImage(poi.tags),
       relevanceScore: notability(withWiki) + sitelinkBonus(sitelinks),
       tier: valueTier(withWiki),
+      category: categoryOf(poi.tags),
     };
   });
 }
 
 module.exports = {
   sitelinkBonus, tagScore, posterImage, notability,
-  interestHigh, dataHigh, valueTier, enrichOne,
+  interestHigh, dataHigh, valueTier, categoryOf, enrichOne,
 };
