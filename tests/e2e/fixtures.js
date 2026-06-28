@@ -55,8 +55,15 @@ async function mockBackend(page) {
   await page.route('**/api/story', (route) =>
     route.fulfill({ json: SAMPLE_STORY }));
 
+  // The backend returns { trips: [...] }, NOT a bare array. Returning the wrong
+  // shape here made TripPlanner destructure `undefined` and crash to a blank
+  // screen — a test-only failure that does not exist in the real app.
   await page.route('**/api/trips', (route) =>
-    route.fulfill({ json: [] }));
+    route.fulfill({ json: { trips: [] } }));
+
+  // Active-trip fetch / create return { trip: {...} } — mock for robustness.
+  await page.route('**/api/trips/**', (route) =>
+    route.fulfill({ json: { trip: { id: 't1', name: 'Test trip', items: [] } } }));
 
   await page.route('**/health', (route) =>
     route.fulfill({ json: { ok: true } }));
