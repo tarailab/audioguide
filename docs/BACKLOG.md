@@ -32,6 +32,48 @@ this is the running list of known improvements.
   (`amenity=*`). Different feature from the storyteller core; keep it from
   diluting focus.
 
+## 🔬 Deep-research dossiers + themed trips (idea, 2026-06-28)
+
+Potential unique value prop (expensive — needs the spike below first). For each
+place, build a deep **research dossier**: hard facts, demographics, news,
+stories, dark history, and *interesting angles* (crime, war, religion, art,
+industry, sport/football, literature, food, myth, maritime) + *connections to
+other places* — **sourced in the local language** (Spanish/Galician/Basque/
+Catalan), where local sources beat English Wikipedia. This is the differentiator:
+not more facts, but non-obvious angles + cross-place narrative links.
+
+**Architecture (the make-or-break call):** research is a corpus you build *once*,
+not per request. `deep research → dossier {facts, angles{}, connections[], sources,
+lang} → chunk + embed in Qdrant`. Themed trips ("criminal Spain", "football
+Spain") and stories become cheap **retrieval + ranking** over the dossiers, not
+fresh research. Connections stored as a graph → route trips by narrative, not
+just distance. Clustering angles surfaces *emergent* themes.
+
+**Cost control (or it's not viable):**
+- The trip-planner **"research" mark IS the job queue** — only spend on dossiers
+  for places a user flags. Demand-driven, zero waste.
+- Tier it: pre-research only top-N headline POIs; rest lazy/on-mark.
+- Hybrid model (ties to B2): local Ollama for bulk fan-out/extraction, Claude for
+  final angle-synthesis. Split stable (history) vs fresh (news) refresh cadence.
+
+**Risks:** hallucination on obscure places (→ citations + adversarial verify +
+confidence flags; web claims marked unverified), local-language eval is hard,
+ToS limits on caching news content (search via SearXNG is fine).
+
+**Infra already present:** SearXNG `:8080`, Ollama (free local), Qdrant `:6333`
+(vector store), Mem0, and the `deep-research` skill (fan-out → verify → cited).
+
+**Spike (2026-06-28):** ran `deep-research` on 5 N-Spain places (Santillana del
+Mar, Getaria, Lugo, Olite, Besalú). Full report: `docs/deep-research-spike-2026-06-28.md`.
+*Verdict:* concept validated where documentation exists (Getaria/Olite/Lugo rich,
+genuinely non-obvious + local-language-sourced), but yield is wildly uneven
+(Getaria 9 claims, Besalú 0), the adversarial verifier has a **false-negative**
+problem (killed true facts: Lugo founding, Besalú mikveh), and it's heavy
+(~670K tokens/place). → Build it **demand-gated** (the "research" mark), on a
+**lighter pipeline** (Ollama extract, Claude synthesis), with **recall-friendly
+verification** (source-trust tiers + "needs review", not hard-kill) and an
+**owner curation step** — NOT an autonomous full-coverage crawler.
+
 ## 🛠️ Idle / background tasks (decided 2026-06-24, important)
 
 Run when not actively working on other things (consider a background agent).
