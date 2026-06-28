@@ -311,7 +311,13 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
                     </p>
                   </div>
                 </div>
-                {detail.wiki?.extract && <p className="detail-wiki">{detail.wiki.extract}</p>}
+                {detail.blurb && <p className="detail-blurb">{detail.blurb}</p>}
+                {detail.wiki?.extract && detail.wiki.extract !== detail.blurb && (
+                  <p className="detail-wiki">{detail.wiki.extract}</p>
+                )}
+                {!detail.blurb && !detail.wiki?.extract && !enriching && (
+                  <p className="muted detail-noinfo">No description available yet.</p>
+                )}
                 <p className="detail-links">
                   {detail.tags?.wikipedia && (
                     <a target="_blank" rel="noreferrer"
@@ -373,7 +379,7 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
                   <div className="trip-item-main" onClick={() => selectPoi({ id: i.poiId, name: i.name, lat: i.lat, lon: i.lon, tags: i.tags })}>
                     <span className={`tier tier-${i.tier || '?'}`}>{i.tier || '·'}</span>
                     <span className="trip-item-cat" title={CAT[i.category]?.label}>{CAT[i.category]?.icon || '📍'}</span>
-                    <span className="trip-item-name">{i.name}</span>
+                    <span className="trip-item-name" title={i.blurb || i.name}>{i.name}</span>
                     <span className="trip-item-status" title={STATUS_LABEL[i.status]?.hint}>{STATUS_LABEL[i.status]?.icon}</span>
                   </div>
                   <div className="trip-item-controls">

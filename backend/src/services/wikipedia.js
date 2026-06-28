@@ -4,7 +4,8 @@ async function fetchSummaryByTitle(title) {
   if (!res.ok) return null;
   const data = await res.json();
   if (!data.extract) return null;
-  return { title: data.title, extract: data.extract, url: data.content_urls?.desktop?.page };
+  // `description` is a short Wikidata-sourced one-liner (e.g. "castle in Spain").
+  return { title: data.title, extract: data.extract, description: data.description || null, url: data.content_urls?.desktop?.page };
 }
 
 async function fetchWikipedia(name, tags = {}) {
