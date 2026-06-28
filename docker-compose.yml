@@ -33,6 +33,9 @@ services:
     environment:
       OLLAMA_URL: http://host.docker.internal:11434
       TTS_URL: http://tts:8000/v1/audio/speech
+      # Public Overpass mirrors are off by default (flaky). Set to "true" to use
+      # them as fallback for covered regions and as the source outside them.
+      OVERPASS_PUBLIC_FALLBACK: "false"
     expose:
       - "3001"
     depends_on:
