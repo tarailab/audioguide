@@ -11,7 +11,11 @@ import { CATEGORY_COLOR } from '../store/categories';
 //   stroke ring = your trip mark (must / research / nearby / skip), else faint
 // Marks/selection restyle existing markers in place — we never clear-and-rebuild.
 
-export const TIER_SIZE = { A: 9, B: 7.5, C: 6, D: 5 };
+// Wider ramps than before — radius alone was hard to tell apart, so high-value
+// POIs are now big AND solid, low-value small AND faint (area + opacity both
+// scale, giving a clear visual hierarchy).
+export const TIER_SIZE = { A: 11, B: 8, C: 5.5, D: 4 };
+export const TIER_OPACITY = { A: 1, B: 0.88, C: 0.72, D: 0.55 };
 export const STATUS_RING = { must: '#ef4444', research: '#f59e0b', nearby: '#3b82f6', skip: '#6b7280' };
 
 export default function BrowseMap({ pois, statusForId, selectedId, onBoundsChange, onPoiClick, initialCenter, initialZoom, focusKey, focusPoints }) {
@@ -29,12 +33,12 @@ export default function BrowseMap({ pois, statusForId, selectedId, onBoundsChang
     const { statusForId, selectedId } = cbRef.current;
     const status = statusForId?.(poi.id);
     const selected = poi.id === selectedId;
-    const base = TIER_SIZE[poi.tier] || 5;
+    const base = TIER_SIZE[poi.tier] || 4;
     return {
       renderer: rendererRef.current,
       radius: selected ? base + 3 : base,
       fillColor: CATEGORY_COLOR[poi.category] || CATEGORY_COLOR.other,
-      fillOpacity: 1,
+      fillOpacity: selected ? 1 : (TIER_OPACITY[poi.tier] ?? 0.55),
       color: status ? STATUS_RING[status] : (selected ? '#ffffff' : 'rgba(15,23,42,0.55)'),
       weight: status || selected ? 3 : 1,
     };

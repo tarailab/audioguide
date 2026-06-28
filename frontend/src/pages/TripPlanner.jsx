@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import BrowseMap, { TIER_SIZE, STATUS_RING } from '../components/BrowseMap';
+import BrowseMap, { TIER_SIZE, TIER_OPACITY, STATUS_RING } from '../components/BrowseMap';
 import { browsePOIs, enrichPOI, trips as api } from '../services/api';
 import { CATEGORIES, CAT, ALL_CATEGORY_KEYS } from '../store/categories';
 
@@ -274,7 +274,7 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
               <span className="legend-title">Size = value</span>
               {['A', 'B', 'C', 'D'].map((t) => (
                 <span key={t} className="legend-item">
-                  <span className="legend-dot" style={{ width: TIER_SIZE[t], height: TIER_SIZE[t], background: '#cbd5e1' }} />{t}
+                  <span className="legend-dot" style={{ width: TIER_SIZE[t] * 2, height: TIER_SIZE[t] * 2, background: '#cbd5e1', opacity: TIER_OPACITY[t] }} />{t}
                 </span>
               ))}
             </div>
