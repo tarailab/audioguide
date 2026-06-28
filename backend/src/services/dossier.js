@@ -112,4 +112,6 @@ async function buildDossier(poi, { force = false } = {}) {
   return result;
 }
 
-module.exports = { buildDossier };
+// SYSTEM/corpus/parseJson exported so the model-comparison harness reuses the
+// exact production prompt (fair test — model is the only variable).
+module.exports = { buildDossier, SYSTEM, corpus, parseJson, MODEL };
