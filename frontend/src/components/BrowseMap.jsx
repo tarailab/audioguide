@@ -1,15 +1,17 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { CATEGORY_COLOR } from '../store/categories';
 
 // Browse map for the trip planner. POIs render as canvas circleMarkers (one
 // shared <canvas>, not a DOM node per point) so several thousand stay smooth.
-// The colour encoding maps onto a circle's two native properties:
-//   fill   = value tier (A–D)
-//   stroke = your trip mark (must / research / nearby / skip), else a faint edge
+// Three independent cues stack on each dot:
+//   fill colour = category (what kind of place)
+//   radius      = value tier A–D (bigger = more notable)
+//   stroke ring = your trip mark (must / research / nearby / skip), else faint
 // Marks/selection restyle existing markers in place — we never clear-and-rebuild.
 
-export const TIER_COLOR = { A: '#16a34a', B: '#2563eb', C: '#d97706', D: '#6b7280' };
+export const TIER_SIZE = { A: 9, B: 7.5, C: 6, D: 5 };
 export const STATUS_RING = { must: '#ef4444', research: '#f59e0b', nearby: '#3b82f6', skip: '#6b7280' };
 
 export default function BrowseMap({ pois, statusForId, selectedId, onBoundsChange, onPoiClick, initialCenter, initialZoom, focusKey, focusPoints }) {
@@ -27,12 +29,13 @@ export default function BrowseMap({ pois, statusForId, selectedId, onBoundsChang
     const { statusForId, selectedId } = cbRef.current;
     const status = statusForId?.(poi.id);
     const selected = poi.id === selectedId;
+    const base = TIER_SIZE[poi.tier] || 5;
     return {
       renderer: rendererRef.current,
-      radius: selected ? 9 : 6,
-      fillColor: TIER_COLOR[poi.tier] || '#6b7280',
+      radius: selected ? base + 3 : base,
+      fillColor: CATEGORY_COLOR[poi.category] || CATEGORY_COLOR.other,
       fillOpacity: 1,
-      color: status ? STATUS_RING[status] : (selected ? '#ffffff' : 'rgba(15,23,42,0.5)'),
+      color: status ? STATUS_RING[status] : (selected ? '#ffffff' : 'rgba(15,23,42,0.55)'),
       weight: status || selected ? 3 : 1,
     };
   }
@@ -94,7 +97,7 @@ export default function BrowseMap({ pois, statusForId, selectedId, onBoundsChang
     for (const m of markers.current.values()) m.setStyle(styleFor(m._poi));
     const sel = selectedId && markers.current.get(selectedId);
     if (sel) sel.bringToFront();
-  }, [selectedId, statusForId, pois]);
+  }, [selectedId, statusForId]);
 
   return <div ref={containerRef} className="browse-map" />;
 }

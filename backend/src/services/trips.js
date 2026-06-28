@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { categoryOf } = require('./poiEnrich');
 
 // Trips persist to the host-mounted data volume (survives container rebuilds),
 // same place as stories.jsonl. One JSON file holding all trips. Multi-user ready:
@@ -57,7 +58,7 @@ function snapshot(poi) {
     image: poi.image || null,
     wikiTitle: poi.wiki?.title || t.wikipedia || null,
     osm: poi.id, // "node-123" etc.
-    category: t.historic || t.tourism || t.natural || t.man_made || t.place || t.heritage ? true : false,
+    category: poi.category || categoryOf(t),
     tags: {
       historic: t.historic, tourism: t.tourism, natural: t.natural,
       man_made: t.man_made, place: t.place, heritage: t.heritage,

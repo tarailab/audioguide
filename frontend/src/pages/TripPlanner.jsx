@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import BrowseMap, { TIER_COLOR, STATUS_RING } from '../components/BrowseMap';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import BrowseMap, { TIER_SIZE, STATUS_RING } from '../components/BrowseMap';
 import { browsePOIs, enrichPOI, trips as api } from '../services/api';
+import { CATEGORIES, CAT, ALL_CATEGORY_KEYS } from '../store/categories';
 
 // Open on the whole Iberian peninsula — the current planning target.
 const SPAIN_CENTER = [40.0, -3.7];
@@ -31,6 +32,16 @@ function download(name, text, type) {
   URL.revokeObjectURL(url);
 }
 
+// bbox helpers for the refetch-guard: pad a [s,w,n,e] box, test containment.
+function padBbox([s, w, n, e], f = 0.35) {
+  const dLat = (n - s) * f, dLon = (e - w) * f;
+  return [s - dLat, w - dLon, n + dLat, e + dLon];
+}
+function contains(outer, inner) {
+  return outer && inner[0] >= outer[0] && inner[1] >= outer[1]
+    && inner[2] <= outer[2] && inner[3] <= outer[3];
+}
+
 export default function TripPlanner({ onBack, onOpenPrefs }) {
   const [tripList, setTripList] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -41,11 +52,14 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
   const [capped, setCapped] = useState(false);
   const bboxTimer = useRef(null);
   const lastReq = useRef(0);
+  const lastFetch = useRef({ bbox: null, zoom: null }); // refetch-guard
 
   const [selected, setSelected] = useState(null); // raw browse poi
   const [enriched, setEnriched] = useState(null);
   const [enriching, setEnriching] = useState(false);
   const [filter, setFilter] = useState('all'); // status filter for the trip list
+  // Category filter for the browse map (all on by default).
+  const [activeCats, setActiveCats] = useState(() => new Set(ALL_CATEGORY_KEYS));
 
   // ── Trips ──────────────────────────────────────────────────────────────────
   const refreshList = useCallback(async () => {
@@ -93,16 +107,23 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
   }
 
   // ── Browse ───────────────────────────────────────────────────────────────────
+  // Only refetch when the view leaves the already-loaded area (or zoom changes).
+  // We fetch a padded bbox, so small pans stay within it and hit no network —
+  // that, plus client-side category filtering, is what kills the pan lag.
   const onBounds = useCallback((bbox, zoom) => {
+    const lf = lastFetch.current;
+    if (zoom === lf.zoom && contains(lf.bbox, bbox)) return; // already have it
     clearTimeout(bboxTimer.current);
     bboxTimer.current = setTimeout(async () => {
       const reqId = ++lastReq.current;
+      const padded = padBbox(bbox);
       setBrowsing(true);
       try {
-        const { places, capped } = await browsePOIs(bbox, limitForZoom(zoom));
+        const { places, capped } = await browsePOIs(padded, limitForZoom(zoom));
         if (reqId !== lastReq.current) return; // a newer pan superseded this one
         setPois(places);
         setCapped(!!capped);
+        lastFetch.current = { bbox: padded, zoom };
       } catch (e) {
         if (reqId === lastReq.current) { setPois([]); console.error('[Planner] browse failed', e); }
       } finally {
@@ -157,6 +178,23 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
     }
   }
 
+  // Category counts over loaded POIs + the map's visible (filtered) subset.
+  const catCounts = useMemo(() => {
+    const c = {};
+    for (const p of pois) c[p.category] = (c[p.category] || 0) + 1;
+    return c;
+  }, [pois]);
+  const visiblePois = useMemo(
+    () => pois.filter((p) => activeCats.has(p.category)),
+    [pois, activeCats],
+  );
+  const toggleCat = (key) => setActiveCats((prev) => {
+    const next = new Set(prev);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
+  });
+  const allOn = activeCats.size === ALL_CATEGORY_KEYS.length;
+
   const counts = STATUS.reduce((acc, s) => {
     acc[s.id] = trip?.items.filter((i) => i.status === s.id).length || 0;
     return acc;
@@ -192,8 +230,30 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
       <div className="planner-body">
         {/* Map */}
         <div className="planner-map-wrap">
+          {/* Category filter chips */}
+          <div className="cat-bar">
+            <button className={`cat-chip all ${allOn ? '' : 'off'}`}
+                    onClick={() => setActiveCats(new Set(allOn ? [] : ALL_CATEGORY_KEYS))}>
+              {allOn ? 'None' : 'All'}
+            </button>
+            {CATEGORIES.map((c) => {
+              const on = activeCats.has(c.key);
+              const n = catCounts[c.key] || 0;
+              return (
+                <button key={c.key}
+                        className={`cat-chip ${on ? '' : 'off'}`}
+                        style={on ? { borderColor: c.color, boxShadow: `inset 0 -2px 0 ${c.color}` } : undefined}
+                        title={c.label}
+                        onClick={() => toggleCat(c.key)}>
+                  <span className="cat-dot" style={{ background: c.color }} />
+                  {c.icon} <span className="cat-count">{n}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <BrowseMap
-            pois={pois}
+            pois={visiblePois}
             statusForId={statusForId}
             selectedId={selected?.id}
             onBoundsChange={onBounds}
@@ -204,21 +264,22 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
             focusPoints={trip?.items}
           />
           <div className="map-status">
-            {browsing ? 'Loading…' : `${pois.length} places`}{capped && ' (zoom in for more)'}
+            {browsing ? 'Loading…' : `${visiblePois.length}${visiblePois.length !== pois.length ? `/${pois.length}` : ''} places`}
+            {capped && ' · zoom in for more'}
           </div>
 
-          {/* Color legend */}
+          {/* Legend */}
           <div className="map-legend">
             <div className="legend-group">
-              <span className="legend-title">Value (fill)</span>
+              <span className="legend-title">Size = value</span>
               {['A', 'B', 'C', 'D'].map((t) => (
                 <span key={t} className="legend-item">
-                  <span className="legend-dot" style={{ background: TIER_COLOR[t] }} />{t}
+                  <span className="legend-dot" style={{ width: TIER_SIZE[t], height: TIER_SIZE[t], background: '#cbd5e1' }} />{t}
                 </span>
               ))}
             </div>
             <div className="legend-group">
-              <span className="legend-title">Your mark (ring)</span>
+              <span className="legend-title">Ring = mark</span>
               {STATUS.map((s) => (
                 <span key={s.id} className="legend-item" title={s.hint}>
                   <span className="legend-dot ring" style={{ borderColor: STATUS_RING[s.id] }} />{s.label}
@@ -242,6 +303,9 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
                     <h2>{detail.name}</h2>
                     <p className="detail-meta">
                       <span className={`tier tier-${detail.tier || '?'}`}>{detail.tier || '·'}</span>
+                      {detail.category && CAT[detail.category] && (
+                        <span className="detail-cat">{CAT[detail.category].icon} {CAT[detail.category].label}</span>
+                      )}
                       {enriching && ' · enriching…'}
                       {detail.sitelinks ? ` · ${detail.sitelinks} wikis` : ''}
                     </p>
@@ -308,6 +372,7 @@ export default function TripPlanner({ onBack, onOpenPrefs }) {
                 <div key={i.poiId} className="trip-item">
                   <div className="trip-item-main" onClick={() => selectPoi({ id: i.poiId, name: i.name, lat: i.lat, lon: i.lon, tags: i.tags })}>
                     <span className={`tier tier-${i.tier || '?'}`}>{i.tier || '·'}</span>
+                    <span className="trip-item-cat" title={CAT[i.category]?.label}>{CAT[i.category]?.icon || '📍'}</span>
                     <span className="trip-item-name">{i.name}</span>
                     <span className="trip-item-status" title={STATUS_LABEL[i.status]?.hint}>{STATUS_LABEL[i.status]?.icon}</span>
                   </div>
