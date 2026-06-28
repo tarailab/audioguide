@@ -8,14 +8,14 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './visual-capture',
   reporter: [['list']],
-  use: { baseURL: 'http://localhost:5173' },
+  use: { baseURL: 'http://localhost:5273' }, // dedicated test port (see playwright.config.js)
   projects: [
     { name: 'phone', use: { ...devices['Pixel 7'] } },
     { name: 'desktop', use: { viewport: { width: 1280, height: 900 } } },
   ],
   webServer: {
-    command: 'npm run dev --prefix frontend',
-    url: 'http://localhost:5173',
+    command: 'npm run dev --prefix frontend -- --port 5273 --strictPort',
+    url: 'http://localhost:5273',
     cwd: '..', // config lives in qa/; run the dev server from the repo root
     reuseExistingServer: true,
     timeout: 120_000,
