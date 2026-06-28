@@ -8,6 +8,13 @@ const PUBLIC_URLS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 
+// Public mirrors are OFF by default — they're flaky and a distraction. Set
+// OVERPASS_PUBLIC_FALLBACK=true to re-enable them (fallback for the covered
+// regions, and the only source outside them). With it off, everything goes to
+// our local server: covered regions work, elsewhere returns empty (fast).
+const USE_PUBLIC = /^(1|true|yes|on)$/i.test(process.env.OVERPASS_PUBLIC_FALLBACK || '');
+console.log(`[Overpass] public mirrors: ${USE_PUBLIC ? 'ENABLED (fallback)' : 'disabled — local only'}`);
+
 // Regions in the local extract (padded bboxes: [south, west, north, east]).
 // Keep in sync with the merged pbf in docker-compose (osm/regions.osm.pbf).
 const LOCAL_BBOXES = [
@@ -19,7 +26,9 @@ function inLocalCoverage(lat, lon) {
   return LOCAL_BBOXES.some(([s, w, n, e]) => lat >= s && lat <= n && lon >= w && lon <= e);
 }
 function urlsFor(lat, lon) {
-  return inLocalCoverage(lat, lon) ? [LOCAL_OVERPASS, ...PUBLIC_URLS] : PUBLIC_URLS;
+  if (inLocalCoverage(lat, lon)) return USE_PUBLIC ? [LOCAL_OVERPASS, ...PUBLIC_URLS] : [LOCAL_OVERPASS];
+  // Outside coverage: public mirrors if enabled, else local (returns empty).
+  return USE_PUBLIC ? PUBLIC_URLS : [LOCAL_OVERPASS];
 }
 
 const PER_MIRROR_TIMEOUT_MS = 12000; // fail over fast when a server is busy
@@ -149,7 +158,9 @@ ${poiBlock ? `(${poiBlock}\n)->.poi;\n.poi out ${poiOut};` : ''}
   // be slower on the public mirrors, and failing over to them (3 × 12s) just
   // jams the shared queue for the whole app. Outside coverage, use the mirrors.
   const covered = inLocalCoverage((south + north) / 2, (west + east) / 2);
-  const urls = covered ? [LOCAL_OVERPASS] : PUBLIC_URLS;
+  // Covered → local only. Outside → public mirrors if enabled, else local
+  // (empty result). Either way no public failover for a covered bbox.
+  const urls = covered || !USE_PUBLIC ? [LOCAL_OVERPASS] : PUBLIC_URLS;
   const data = await schedule(() => fetchOverpass(query, urls, 0, 25000));
   return normalize(data);
 }
