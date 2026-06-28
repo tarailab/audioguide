@@ -11,6 +11,13 @@
 // source trust, in the extraction stage.
 
 const cache = require('./cache');
+const fs = require('fs');
+const path = require('path');
+
+// Successful gathers persist here as permanent FIXTURES — so we never re-hit
+// Wikimedia for the same place (the shared lab IP gets rate-limited otherwise),
+// and the corpus can be reused across model runs / sessions for free.
+const GATHER_DIR = path.join(__dirname, '../../data/gather-cache');
 
 const UA = 'AudioguideApp/1.0 (audioguide research; contact: local)';
 const WD = 'https://www.wikidata.org';
@@ -154,11 +161,28 @@ async function gatherSources(poi) {
   if (!qid) qid = await resolveQid(name);
   if (!qid) return { qid: null, name, languages: [], articles: [], parent: null, refs: [], note: 'no Wikidata entity' };
 
+  // Disk fixture first (permanent), then in-memory cache, then live fetch.
+  const disk = readGatherDisk(qid);
+  if (disk) return disk;
   const cached = cache.get(`research:gather:${qid}`);
   if (cached) return cached;
+
   const result = await gatherForQid(qid, name);
-  if (result.combinedChars > 0) cache.set(`research:gather:${qid}`, result, GATHER_TTL_MS);
+  if (result.combinedChars > 0) {
+    cache.set(`research:gather:${qid}`, result, GATHER_TTL_MS);
+    writeGatherDisk(qid, result); // capture once → permanent fixture, no re-fetch
+  }
   return result;
+}
+
+function readGatherDisk(qid) {
+  try { return JSON.parse(fs.readFileSync(path.join(GATHER_DIR, `${qid}.json`), 'utf8')); } catch { return null; }
+}
+function writeGatherDisk(qid, result) {
+  try {
+    fs.mkdirSync(GATHER_DIR, { recursive: true });
+    fs.writeFileSync(path.join(GATHER_DIR, `${qid}.json`), JSON.stringify(result));
+  } catch (err) { console.error('[Gather] cache write failed:', err.message); }
 }
 
 async function gatherForQid(qid, name) {
