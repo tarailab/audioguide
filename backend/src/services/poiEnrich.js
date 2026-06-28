@@ -2,7 +2,7 @@
 // trip-planner browse pipeline both classify POIs identically by going through
 // here — only their *selection* differs (speed-ellipse vs map-bbox).
 const { fetchWikipedia } = require('./wikipedia');
-const { fetchSitelinkCounts } = require('./wikidata');
+const { fetchWikidataMeta } = require('./wikidata');
 const cache = require('./cache');
 
 const ENRICH_TTL_MS = 15 * 60 * 1000; // matches POI_TTL — OSM data barely changes
@@ -47,6 +47,23 @@ function notability(poi) {
 // axis. Order matters (first match wins): a museum inside a castle reads as a
 // castle; a peak with a viewpoint reads as nature. Keep keys in sync with the
 // frontend categories.js.
+// Minimal one-line POI description. Cascade of free sources (no LLM): an OSM
+// description tag → the Wikidata one-liner → the first sentence of the Wikipedia
+// summary. Returns null if nothing's available (an LLM/web-search fallback for
+// those is a planned follow-up). Trimmed to a tooltip-friendly length.
+function firstSentence(text) {
+  if (!text) return null;
+  const m = text.match(/^.*?[.!?](\s|$)/);
+  return (m ? m[0] : text).trim();
+}
+function buildBlurb(tags = {}, wiki, wikidataDescription) {
+  const raw = tags['description:en'] || tags.description
+    || wikidataDescription || wiki?.description || firstSentence(wiki?.extract);
+  if (!raw) return null;
+  const s = String(raw).trim();
+  return s.length > 180 ? `${s.slice(0, 177)}…` : s;
+}
+
 function categoryOf(t = {}) {
   if (/^(city|town|village|hamlet|suburb)$/.test(t.place || '')) return 'settlement';
   if (/^(castle|fort|city_gate|fortification)$/.test(t.historic || '') || t.defensive) return 'castle';
@@ -92,12 +109,7 @@ async function enrichOne(poi) {
   if (!poi || !poi.id) throw new Error('enrichOne: poi.id required');
   return cache.remember(`poi:enrich:${poi.id}`, ENRICH_TTL_MS, async () => {
     const wiki = await fetchWikipedia(poi.name, poi.tags);
-    const qid = poi.tags?.wikidata;
-    let sitelinks = 0;
-    if (/^Q\d+$/.test(qid || '')) {
-      const sl = await fetchSitelinkCounts([qid]);
-      sitelinks = sl[qid] || 0;
-    }
+    const { sitelinks, description: wdDesc } = await fetchWikidataMeta(poi.tags?.wikidata);
     const withWiki = { ...poi, wiki, sitelinks };
     return {
       ...withWiki,
@@ -105,11 +117,12 @@ async function enrichOne(poi) {
       relevanceScore: notability(withWiki) + sitelinkBonus(sitelinks),
       tier: valueTier(withWiki),
       category: categoryOf(poi.tags),
+      blurb: buildBlurb(poi.tags, wiki, wdDesc),
     };
   });
 }
 
 module.exports = {
   sitelinkBonus, tagScore, posterImage, notability,
-  interestHigh, dataHigh, valueTier, categoryOf, enrichOne,
+  interestHigh, dataHigh, valueTier, categoryOf, buildBlurb, enrichOne,
 };

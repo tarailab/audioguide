@@ -5,7 +5,7 @@ const { calcDistance, calcBearing, bearingToWords } = require('../utils/geo');
 const { fetchSitelinkCounts } = require('../services/wikidata');
 const cache = require('../services/cache');
 const {
-  sitelinkBonus, tagScore, posterImage, notability, valueTier, categoryOf, enrichOne,
+  sitelinkBonus, tagScore, posterImage, notability, valueTier, categoryOf, buildBlurb, enrichOne,
 } = require('../services/poiEnrich');
 
 const POI_TTL_MS = 15 * 60 * 1000; // 15 min — OSM data barely changes
@@ -224,6 +224,7 @@ router.post('/browse', async (req, res) => {
         tagScore: tagScore(p.tags),
         tier: valueTier({ tags: p.tags }), // provisional (tags only)
         category: categoryOf(p.tags),
+        blurb: buildBlurb(p.tags), // OSM tag only here; full cascade on enrich
         hasWiki: !!(p.tags?.wikidata || p.tags?.wikipedia),
       }));
       const cap = Math.min(500, Math.max(1, limit));
@@ -255,6 +256,7 @@ router.post('/enrich', async (req, res) => {
       image: e.image,
       tier: e.tier,
       category: e.category,
+      blurb: e.blurb,
       sitelinks: e.sitelinks,
       relevanceScore: e.relevanceScore,
     });

@@ -70,6 +70,33 @@ async function sitelinkCountOne(qid) {
   }
 }
 
+// One EntityData call → both the sitelink count AND the short description
+// (e.g. "medieval castle in Segovia"). Used by enrichOne so a single fetch
+// powers interest-ranking and the minimal POI blurb. Cached like sitelinks.
+async function fetchWikidataMeta(qid) {
+  const empty = { sitelinks: 0, description: null };
+  if (!qid || !/^Q\d+$/.test(qid)) return empty;
+  const hit = cache.get(`wm:${qid}`);
+  if (hit) return hit;
+  try {
+    const res = await fetch(`https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return empty;
+    const data = await res.json();
+    const ent = data.entities?.[qid] || {};
+    const meta = {
+      sitelinks: Object.keys(ent.sitelinks || {}).filter((k) => k.endsWith('wiki')).length,
+      description: ent.descriptions?.en?.value || null,
+    };
+    cache.set(`wm:${qid}`, meta, SITELINK_TTL_MS);
+    return meta;
+  } catch {
+    return empty;
+  }
+}
+
 async function fetchSitelinkCounts(qids) {
   const out = {};
   const todo = [];
@@ -89,4 +116,4 @@ async function fetchSitelinkCounts(qids) {
   return out;
 }
 
-module.exports = { fetchWikidataFacts, fetchSitelinkCounts };
+module.exports = { fetchWikidataFacts, fetchSitelinkCounts, fetchWikidataMeta };
