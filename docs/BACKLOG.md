@@ -89,6 +89,44 @@ verification** (source-trust tiers + "needs review", not hard-kill) and an
   function — `callLLM` / `DOSSIER_MODEL`).
 - *Still to wire:* planner "research" mark → buildDossier; owner usage endpoint;
   dossier display in the planner UI; reference-content fetching (phase 2).
+- **Engine decided TIERED (2026-06-29):** gemma4 (free, local) screens → GLM-5.2
+  or Sonnet for substantive → Opus for flagship. 4-model eval showed
+  Opus/Sonnet/GLM-5.2 ~tied on quality, gemma a tier below. Real cost/place:
+  Opus ~$0.14 · Sonnet ~$0.07 · GLM-5.2 ~$0.028 · gemma free. Build = a richness
+  gate (gather signal) + routing in buildDossier.
+
+## 💶 Monetization, distribution & new content (2026-06-29)
+
+Strategic read: revenue bar ~€100k = ~5–10k customers; usage is 1–3×/yr (no
+subscription habit) → **CAC/distribution is the constraint, not the dataset**
+(which is commodity-sourced — no data moat; edge = local-language + long-tail +
+connections + cheap scale). Bottleneck has shifted from build → distribute + prove
+willingness-to-pay.
+
+- **SEO content flywheel — PROTOTYPED.** `backend/src/scripts/build-seo-pages.js`
+  renders dossiers → standalone SEO pages (JSON-LD, themed angles, CTA into app)
+  in `data/site/`. The dossiers ARE the long-tail content Google rewards, made for
+  pennies → free-discovery funnel that attacks CAC. Built 5 sample pages.
+- **Beachhead = the Camino / N-Spain road trips** — defined route, high-intent
+  audience that already pays for guides, poor local-language coverage = our edge.
+- **Demand test first** — landing page mockup done (price €10 trip / €30 yr /
+  €45 family + waitlist). Next: real pre-order page + small ad spend BEFORE more
+  features.
+- **B2B licensing (most attractive):** rental cars, tourism boards, Camino orgs,
+  in-car/EV apps, other travel apps. One deal > thousands of B2C sales; the
+  continent-scale local-language dataset is a stronger B2B asset.
+- **New content — myths/legends/folklore layer:** another angle theme + a
+  region/county-level fallback query, surfaced when no POI is near (fills dead
+  stretches). Easy fit to the pipeline.
+- **Journey memory:** per-trip state — track what's been narrated (dedup), hold a
+  consistent style/voice, carry preferences. Natural home for a finetuned voice.
+- **Destination from Google Maps → pre-craft journey:** ingest a Maps route/
+  destination (share-link / Android intent), pre-generate the corridor's dossiers.
+- **Cheaper/local inference + DISTILLATION:** eval DeepSeek-V3 / Gemini Flash /
+  Qwen vs GLM for the extraction task (grounded JSON, not deep reasoning).
+  Endgame: **distill Opus dossier-extraction → finetuned local model** (Qwen/gemma)
+  = ~$0, private, offline. Corpus is well-suited for finetuning the TASK + STYLE
+  (not facts — those stay in RAG). Training pairs come free from teacher runs.
 
 ## 🛠️ Idle / background tasks (decided 2026-06-24, important)
 
